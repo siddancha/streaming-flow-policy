@@ -25,11 +25,13 @@ Components
 """
 
 class SinusoidalPosEmb(nn.Module):
-    def __init__(self, dim):
+    def __init__(self, dim, scale = 1):
         super().__init__()
         self.dim = dim
+        self.scale = scale
 
     def forward(self, x):
+        x = x * self.scale
         device = x.device
         half_dim = self.dim // 2
         emb = math.log(10000) / (half_dim - 1)
@@ -152,6 +154,7 @@ class ConditionalUnet1D(nn.Module):
         down_dims=[256,512,1024],
         kernel_size=5,
         n_groups=8,
+        sin_embedding_scale = 1,
         fc_timesteps: Optional[int]=None,
     ):
         """
@@ -175,7 +178,7 @@ class ConditionalUnet1D(nn.Module):
 
         dsed = diffusion_step_embed_dim
         diffusion_step_encoder = nn.Sequential(
-            SinusoidalPosEmb(dsed),
+            SinusoidalPosEmb(dsed, scale = sin_embedding_scale),
             nn.Linear(dsed, dsed * 4),
             nn.Mish(),
             nn.Linear(dsed * 4, dsed),
