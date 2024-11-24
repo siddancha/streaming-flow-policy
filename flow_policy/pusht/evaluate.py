@@ -2,8 +2,11 @@ import argparse
 import numpy as np
 import torch
 from pathlib import Path
-# import wandb
+import wandb
 
+import sys, os
+
+sys.path.append('/home/sunsh16e/flow-policy-1/')
 from flow_policy.pusht.dataset import PushTStateDatasetWithNextObsAsAction
 from flow_policy.pusht.dp_state_notebook.all import (
     ConditionalUnet1D, PushTEnv, Rollout,
@@ -30,6 +33,11 @@ def parse_args():
     parser.add_argument("--seed", type=int, default=16, help="Random seed")
     parser.add_argument("--env-start-seed", type=int, default=500, help="Start seed for environment")
     parser.add_argument("--max-rollout-steps", type=int, default=200, help="Maximum steps in each test")
+
+    parser.add_argument("--obs_horizon", type=int, default=2, help="observation horizon")
+    parser.add_argument("--action_horizon", type=int, default=8, help="action horizon")
+    parser.add_argument("--pred_horizon", type=int, default=16, help="prediction horizon")
+    parser.add_argument("--sin_embedding_scale", type=int, default=1, help="sign embedding scale")
     return parser.parse_args()
 
 def pretty_print_args(args):
@@ -65,10 +73,12 @@ def main():
     score_save_path = save_dir / f'{args.name}_score.pt'
     traj_save_path = save_dir / f'{args.name}_traj.pt'
     action_save_path = save_dir / f'{args.name}_action.pt'
-
+    obs_horizon = args.obs_horizon
+    action_horizon = args.action_horizon
+    pred_horizon = args.pred_horizon
+    sin_embedding_scale = args.sin_embedding_scale
     # Parameters
-    obs_horizon = 2
-    action_horizon = 8
+    
     obs_dim = 5
     action_dim = 2
 
@@ -78,10 +88,12 @@ def main():
             input_dim=action_dim,
             global_cond_dim=obs_dim*obs_horizon,
             fc_timesteps=1,
+            sin_embedding_scale=sin_embedding_scale,
         )
         policy = StreamingFlowPolicyDeterministic(
             velocity_net=velocity_net,
             action_dim=action_dim,
+            pred_horizon = pred_horizon,
             device='cuda',
         )
         state_dict = torch.load(args.ckpt_path, map_location='cuda')
@@ -95,6 +107,7 @@ def main():
         policy = StreamingFlowPolicyStochastic(
             velocity_net=velocity_net,
             action_dim=action_dim,
+            pred_horizon = pred_horizon,
             device='cuda',
         )
         state_dict = torch.load(args.ckpt_path, map_location='cuda')
@@ -118,21 +131,22 @@ def main():
     all_state_list = []
 
     # Initialize WandB
-    # wandb.init(
-    #     project="pushT-test",
-    #     config={
-    #         "name": name,
-    #         "unit_int_steps": integration_steps_per_action,
-    #         "num_tests": num_tests,
-    #         "ema_ckpt_path": ckpt_path,
-    #         "save_dir": save_dir,
-    #         "k_p_scale": k_p,
-    #         "k_v_scale": k_v,
-    #         "seed": seed,
-    #         "env_start_seed": env_start_seed,
-    #         "max_steps": max_steps,
-    #     }
-    # )
+    wandb.init(
+        project="pushT-test",
+        config={
+            "name": args.name,
+            "unit_int_steps": args.integration_steps_per_action,
+            "num_tests": args.num_tests,
+            "ema_ckpt_path": args.ckpt_path,
+            "save_dir": save_dir,
+            "k_p_scale": args.kp,
+            "k_v_scale": args.kv,
+            "seed": args.seed,
+            "env_start_seed": args.env_start_seed,
+            "max_steps": args.max_rollout_steps,
+        }
+    )
+    print('stats', dataset.stats)
 
     # Set seeds
     np.random.seed(args.seed)
@@ -145,6 +159,7 @@ def main():
         env_seed = args.env_start_seed + t_ix
         print(f"Environment seed: {env_seed}")
         env.seed(env_seed)
+        # state_all =  env._get_obs()
 
         # Run rollout
         score, imgs = Rollout(
@@ -161,18 +176,18 @@ def main():
         )
 
         # Get state information from the environment
-        # state_all = env._get_state()
-
+        # state_all = all_state_list[0] #env._get_state()
+   
         # Log results
-        # wandb.log({
-        #     "t_ix": t_ix, 
-        #     "score": score,
-        #     "init_state_gx": state_all[0],
-        #     "init_state_gy": state_all[1],
-        #     "init_state_bx": state_all[2],
-        #     "init_state_by": state_all[3],
-        #     "init_state_theta": state_all[4],
-        # })
+        wandb.log({
+            "t_ix": t_ix, 
+            "score": score,
+            # "init_state_gx": state_all[0],
+            # "init_state_gy": state_all[1],
+            # "init_state_bx": state_all[2],
+            # "init_state_by": state_all[3],
+            # "init_state_theta": state_all[4],
+        })
 
         print(f"Score: {score}")
         score_list.append(score)
@@ -181,9 +196,9 @@ def main():
     # Save results
     torch.save(score_list, score_save_path)
     print('Average score:', sum(score_list) / len(score_list))
-    torch.save(all_state_list, traj_save_path)
+    # torch.save(all_state_list, traj_save_path)
 
-    # wandb.finish()
+    wandb.finish()
 
 if __name__ == "__main__":
     main()
