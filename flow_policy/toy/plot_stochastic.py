@@ -18,7 +18,7 @@ def plot_probability_density_q(
             p[i,j] = fp.pdf_marginal_q(xs[j], ts[i])
 
     if normalize:
-        p = p / p.max(axis=1, keepdims=True)
+        p = p / p.max(axis=1, keepdims=True)  # (T, X)
 
     ax.set_xlim(-1, 1)
     ax.set_ylim(0, 1)

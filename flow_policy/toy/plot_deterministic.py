@@ -9,10 +9,20 @@ def plot_probability_density(
         ts: np.ndarray,
         xs: np.ndarray,
         ax: plt.Axes,
+        normalize: bool=True,
         alpha: float=1,
     ):
     p = fp.pdf_marginal(xs, ts)  # (T, X)
-    return ax.imshow(p, origin='lower', extent=[-1, 1, 0, 1], aspect='auto', alpha=alpha)
+
+    if normalize:
+        p = p / p.max(axis=1, keepdims=True)  # (T, X)
+
+    ax.set_xlim(-1, 1)
+    ax.set_ylim(0, 1)
+    ax.tick_params(axis='both', which='both', length=0, labelbottom=False, labelleft=False)
+
+    extent = [xs.min(), xs.max(), ts.min(), ts.max()]
+    return ax.imshow(p, origin='lower', extent=extent, aspect='auto', alpha=alpha)
 
 def plot_probability_density_and_vector_field(fp: FlowPolicy, ax: plt.Axes, num_points=200, num_quiver=20):
     """
