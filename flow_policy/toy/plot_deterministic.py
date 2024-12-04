@@ -11,6 +11,7 @@ def plot_probability_density(
         ax: plt.Axes,
         normalize: bool=True,
         alpha: float=1,
+        aspect: str | float = 2,
     ):
     p = fp.pdf_marginal(xs, ts)  # (T, X)
 
@@ -21,8 +22,11 @@ def plot_probability_density(
     ax.set_ylim(0, 1)
     ax.tick_params(axis='both', which='both', length=0, labelbottom=False, labelleft=False)
 
+    ax.set_xlabel('Configuration')
+    ax.set_ylabel('Time ⟶')
+
     extent = [xs.min(), xs.max(), ts.min(), ts.max()]
-    return ax.imshow(p, origin='lower', extent=extent, aspect='auto', alpha=alpha)
+    return ax.imshow(p, origin='lower', extent=extent, aspect=aspect, alpha=alpha)
 
 def plot_probability_density_and_vector_field(fp: FlowPolicy, ax: plt.Axes, num_points=200, num_quiver=20):
     """
@@ -55,8 +59,6 @@ def plot_probability_density_and_vector_field(fp: FlowPolicy, ax: plt.Axes, num_
     ax.set_xlim(-1, 1)
     ax.set_ylim(0, 1)
     ax.set_title('Probability Density and Vector Field')
-    ax.set_xlabel('Configuration')
-    ax.set_ylabel('Time ⟶')
 
     ax.tick_params(axis='both', which='both', length=0, labelbottom=False, labelleft=False)
 
@@ -86,8 +88,6 @@ def plot_probability_density_and_streamlines(fp: FlowPolicy, ax: plt.Axes, num_p
     ax.set_xlim(-1, 1)
     ax.set_ylim(0, 1)
     ax.set_title('Probability Density and Flow')
-    ax.set_xlabel('Configuration')
-    ax.set_ylabel('Time ⟶')
 
     ax.tick_params(axis='both', which='both', length=0, labelbottom=False, labelleft=False)
 
@@ -117,7 +117,5 @@ def plot_probability_density_with_trajectories(
     ax.set_xlim(-1, 1)
     ax.set_ylim(0, 1)
     ax.set_title('Trajectories sampled from flow')
-    ax.set_xlabel('Configuration')
-    ax.set_ylabel('Time ⟶')
 
     return heatmap
