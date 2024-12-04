@@ -13,7 +13,10 @@ def plot_probability_density(
         alpha: float=1,
         aspect: str | float = 2,
     ):
-    p = fp.pdf_marginal(xs, ts)  # (T, X)
+    p = np.zeros((len(ts), len(xs)))  # (T, X)
+    for i in range(len(ts)):
+        for j in range(len(xs)):
+            p[i,j] = fp.pdf_marginal(xs[[j]], ts[i])
 
     if normalize:
         p = p / p.max(axis=1, keepdims=True)  # (T, X)
@@ -44,13 +47,18 @@ def plot_probability_density_and_vector_field(
     """
     ts = np.linspace(0, 1, num_points)  # (T,)
     xs = np.linspace(-1, 1, num_points)  # (X,)
-    ts, xs = np.meshgrid(ts, xs, indexing='ij')  # (T, X)
-    u = fp.u_marginal(xs, ts)  # (T, X)
 
     # Plot probability density
     heatmap = plot_probability_density(fp, ts, xs, ax)
 
+    # Compute marginal velocity field.
+    u = np.zeros((len(ts), len(xs)))  # (T, X)
+    for i in range(len(ts)):
+        for j in range(len(xs)):
+            u[i,j] = fp.u_marginal(xs[[j]], ts[i])
+
     # Plot quiver with reduced size
+    ts, xs = np.meshgrid(ts, xs, indexing='ij')  # (T, X)
     quiver_step_x = xs.shape[1] // num_quiver
     quiver_step_t = ts.shape[0] // num_quiver
     ax.quiver(
@@ -84,13 +92,18 @@ def plot_probability_density_and_streamlines(
     """
     ts = np.linspace(0, 1, num_points)  # (T,)
     xs = np.linspace(-1, 1, num_points)  # (X,)
-    ts, xs = np.meshgrid(ts, xs, indexing='ij')  # (T, X)
-    u = fp.u_marginal(xs, ts)  # (T, X)
 
     # Plot log probability
     heatmap = plot_probability_density(fp, ts, xs, ax)
 
+    # Compute marginal velocity field.
+    u = np.zeros((len(ts), len(xs)))  # (T, X)
+    for i in range(len(ts)):
+        for j in range(len(xs)):
+            u[i,j] = fp.u_marginal(xs[[j]], ts[i])
+
     # Plot streamlines
+    ts, xs = np.meshgrid(ts, xs, indexing='ij')  # (T, X)
     ax.streamplot(x=xs[0], y=ts[:, 0], u=u, v=np.ones_like(u), 
                   color='white', density=1, linewidth=0.5, arrowsize=0.5)
 
@@ -112,13 +125,12 @@ def plot_probability_density_with_trajectories(
     ):
     ts = np.linspace(0, 1, 200)  # (T,)
     xs = np.linspace(-1, 1, 200)  # (X,)
-    ts, xs = np.meshgrid(ts, xs, indexing='ij')  # (T, X)
+
     heatmap = plot_probability_density(fp, ts, xs, ax, alpha=heatmap_alpha)
 
     for x_start in xs_start:
         x_start = x_start if x_start is not None else np.random.randn() * fp.σ0
-        traj = fp.ode_integrate(x_start)
-        ts = np.linspace(0, 1, 200)
+        traj = fp.ode_integrate(np.array([x_start]))
         xs = traj.vector_values(ts)
         ax.plot(xs[0], ts, color='red', linewidth=linewidth, alpha=alpha)
 

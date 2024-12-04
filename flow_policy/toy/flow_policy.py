@@ -1,167 +1,103 @@
+from typing import List, Tuple
 import numpy as np
-from scipy.special import logsumexp
-from scipy.stats import norm
-from typing import List
 
-from pydrake.all import PiecewisePolynomial, Trajectory
+from pydrake.all import Trajectory
+
+from flow_policy.toy.base_policy import StreamingFlowPolicyBase
 
 
-class FlowPolicy:
+class StreamingFlowPolicyDeterministic (StreamingFlowPolicyBase):
     def __init__(
         self,
         trajectories: List[Trajectory],
         prior: List[float],
-        sigma: float,
+        σ0: float,
+        k: float = 0.0,
     ):
         """
+        Flow policy with stabilizing conditional flow.
+
+        Let q̃(t) be the demonstration trajectory. And its velocity be ṽ(t).
+
+        Conditional flow:
+        • At time t=0, we sample:
+            • q₀ ~ N(q̃(0), σ₀)
+
+        • Conditional velocity field at (x, t) is:
+            • u(x, t) = -k(q(t) - q̃(t)) + ṽ(t)
+
+        • Flow trajectory at time t:
+            • q(t) - q̃(t) = (q₀ - q̃(0)) exp(-kt)
+              • The error from the trajectory decreases exponentially with time.
+
         Args:
             trajectories (List[Trajectory]): List of trajectories.
             prior (np.ndarray, dtype=float, shape=(K,)): Prior
                 probabilities for each trajectory.
             sigma (float): Standard deviation of the Gaussian distribution.
-        """
-        self.trajectories = trajectories
-        self.π = np.array(prior)  # (K,)
-        self.σ = sigma
+            gain (float): Gain for stabilizing the conditional flow around a
+                demonstration trajectory.
 
-    def μs(self, t: np.ndarray) -> np.ndarray:
         """
-        Compute the mean of the conditional flows at time t
-        
+        super().__init__(dim=1, trajectories=trajectories, prior=prior)
+
+        assert σ0 >= 0.0
+        assert k >= 0.0
+
+        self.σ0 = σ0
+        self.k = k
+
+    def Ab(self, traj: Trajectory, t: float) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Returns:
+            A (np.ndarray, dtype=float, shape=(1, 1)): Transition matrix.
+            b (np.ndarray, dtype=float, shape=(1,)): Bias vector.
+        """
+        q̃0 = traj.value(0).item()
+        q̃t = traj.value(t).item()
+        k = self.k
+
+        exp_neg_kt = np.exp(-k * t)
+        A = np.array([[exp_neg_kt]])  # (1, 1)
+        b = np.array([q̃t - q̃0 * exp_neg_kt])  # (1,)
+        return A, b
+
+    def μΣ0(self, traj: Trajectory) -> np.ndarray:
+        """
+        Compute the mean and covariance matrix of the conditional flow at time t=0.
+
+        Returns:
+            np.ndarray, dtype=float, shape=(1,): Mean at time t=0.
+            np.ndarray, dtype=float, shape=(1, 1): Covariance matrix at time t=0.
+        """
+        q̃0 = traj.value(0).item()
+        σ0 = self.σ0
+        μ0 = np.array([q̃0])  # (1,)
+        Σ0 = np.array([[np.square(σ0)]])  # (1, 1)
+        return μ0, Σ0
+
+    def u_conditional(self, traj: Trajectory, x: np.ndarray, t: float) -> np.ndarray:
+        """
+        Compute the conditional velocity field for a given trajectory.
+
+        • Conditional velocity field at (x, t) is:
+            • u(x, t) = -k(q(t) - q̃(t)) + ṽ(t)
+
+        • Flow trajectory at time t:
+            • q(t) - q̃(t) = (q₀ - q̃(0)) exp(-kt)
+
         Args:
-            t (np.ndarray, dtype=float, shape=(*BS,)): Time values in [0,1].
+            traj (Trajectory): Demonstration trajectory.
+            x (np.ndarray, dtype=float, shape=(1,)): Configuration value.
+            t (float): Time value in [0,1].
             
         Returns:
-            List[np.ndarray, dtype=float, shape=(*BS)]: Means of the conditional
-                flows at time t.
+            (np.ndarray, dtype=float, shape=(1)): Velocity of the conditional flow.
         """
-        shape = t.shape
-        t = t.ravel()  # (N,)
-        μs = []
-        for traj in self.trajectories:
-            μ = traj.vector_values(t).reshape(shape)  # (*BS,)
-            μs.append(μ)
-        return μs
+        qt = x  # (1,)
+        q̃t = traj.value(t).item()
+        ṽt = traj.EvalDerivative(t).item()
+        k = self.k
 
-
-    def log_pdf_marginal(self, x: np.ndarray, t: np.ndarray) -> np.ndarray:
-        """Compute log probability of the marginal flow at state x and time t
-        
-        Args:
-            x (np.ndarray, dtype=float, shape=(*BS,)): State values.
-            t (np.ndarray, dtype=float, shape=(*BS,)): Time values in [0,1].
-            
-        Returns:
-            Log probabilities, shape=(*BS,)
-        """
-        μs = self.μs(t)  # List[(*BS)]
-
-        log_probs = []
-        for μ in μs:
-            dist = norm(loc=μ, scale=self.σ)  # BS=(*BS) ES=()
-            log_prob = dist.logpdf(x)  # (*BS,)
-            log_probs.append(log_prob)
-    
-        log_probs = np.array(log_probs)  # (K, *BS)
-        log_probs = np.moveaxis(log_probs, 0, -1)  # (*BS, K)
-        log_probs = log_probs + np.log(self.π)  # (*BS, K)
-        log_probs = logsumexp(log_probs, axis=-1)  # (*BS,)
-        return log_probs
-
-    def pdf_conditional(self, x: np.ndarray, t: np.ndarray) -> np.ndarray:
-        """
-        Compute probability of the conditional flow at state x and time t, for
-        each of the K trajectories.
-        
-        Args:
-            x (np.ndarray, dtype=float, shape=(*BS,)): State values.
-            t (np.ndarray, dtype=float, shape=(*BS,)): Time values in [0,1].
-            
-        Returns:
-            (np.ndarray, dtype=float, shape=(*BS, K)): densities under each of
-                the K conditional flows.
-        """
-        μs = self.μs(t)  # List[(*BS)]
-
-        probs = []
-        for μ in μs:
-            dist = norm(loc=μ, scale=self.σ)  # BS=(*BS) ES=()
-            prob = dist.pdf(x)  # (*BS,)
-            probs.append(prob)
-    
-        probs = np.array(probs)  # (K, *BS)
-        probs = np.moveaxis(probs, 0, -1)  # (*BS, K)
-        return probs
-
-    def pdf_marginal(self, x: np.ndarray, t: np.ndarray) -> np.ndarray:
-        """
-        Compute probability of the marginal flow at state x and time t
-        
-        Args:
-            x (np.ndarray, dtype=float, shape=(*BS,)): State values.
-            t (np.ndarray, dtype=float, shape=(*BS,)): Time values in [0,1].
-            
-        Returns:
-            Probabilities, shape=(*BS,)
-        """
-        probs = self.pdf_conditional(x, t)  # (*BS, K)
-        probs = probs * self.π  # (*BS, K)
-        probs = np.sum(probs, axis=-1)  # (*BS,)
-        return probs
-
-    def u_conditional(self, t: np.ndarray) -> np.ndarray:
-        """
-        Compute the conditional velocity field for each of the K trajectories.
-        Args:
-            t (np.ndarray, dtype=float, shape=(*BS,)): Time values in [0,1].
-            
-        Returns:
-            (np.ndarray, dtype=float, shape=(*BS, K)): Velocities for each of the
-                K conditional flows.
-        """
-        shape = t.shape
-        t = t.ravel()  # (N,)
-        us = []
-        for traj in self.trajectories:
-            traj_derivative = traj.MakeDerivative()
-            u = traj_derivative.vector_values(t).reshape(shape)  # (*BS)
-            us.append(u)
-
-        us = np.array(us)  # (K, *BS)
-        us = np.moveaxis(us, 0, -1)  # (*BS, K)
-        return us
-
-    def u_marginal(self, x: np.ndarray, t: np.ndarray) -> np.ndarray:
-        """
-        Args:
-            x (np.ndarray, dtype=float, shape=(*BS,)): State values.
-            t (np.ndarray, dtype=float, shape=(*BS,)): Time values in [0,1].
-            
-        Returns:
-            (np.ndarray, dtype=float, shape=(*BS,)): Marginal velocities.
-        """
-        likelihood = self.pdf_conditional(x, t)  # (*BS, K)
-        posterior = self.π * likelihood  # (*BS, K)
-        normalizing_constant = np.sum(posterior, axis=-1, keepdims=True)  # (*BS, 1)
-        posterior = posterior / normalizing_constant  # (*BS, K)
-
-        us = self.u_conditional(t)  # (*BS, K)
-        return np.sum(us * posterior, axis=-1)  # (*BS,)
-
-    def ode_integrate(self, x: float, num_steps: int = 1000) -> Trajectory:
-        """
-        Args:
-            x (float): Initial state.
-            num_steps (int): Number of steps to integrate.
-            
-        Returns:
-            Trajectory: Trajectory starting from x.
-        """
-        breaks = np.linspace(0.0, 1.0, num_steps + 1)  # (N+1,)
-        Δt = 1.0 / num_steps
-        samples = [x]
-        for t in breaks[:-1]:
-            u = self.u_marginal(x, t)
-            x = x + Δt * u
-            samples.append(x)
-        return PiecewisePolynomial.FirstOrderHold(breaks, [samples])
+        u = -k * (qt - q̃t) + ṽt  # (1,)
+        return u

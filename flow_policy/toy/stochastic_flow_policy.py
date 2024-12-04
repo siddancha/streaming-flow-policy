@@ -79,8 +79,8 @@ class StreamingFlowPolicyStochastic (StreamingFlowPolicyBase):
         """
         q̃0 = traj.value(0).item()
         σ0 = self.σ0
-        μ0 = np.array([q̃0, 0])
-        Σ0 = np.array([[np.square(σ0), 0], [0, 1]])
+        μ0 = np.array([q̃0, 0])  # (2,)
+        Σ0 = np.array([[np.square(σ0), 0], [0, 1]])  # (2, 2)
         return μ0, Σ0
 
     def pdf_conditional_q(self, traj: Trajectory, q: float, t: float) -> float:
