@@ -2,10 +2,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 from typing import List
 
-from flow_policy.toy.stochastic_flow_policy import StochasticFlowPolicy
+from flow_policy.toy.stochastic_flow_policy import StreamingFlowPolicyStochastic
 
 def plot_probability_density_q(
-        fp: StochasticFlowPolicy,
+        fp: StreamingFlowPolicyStochastic,
         ts: np.ndarray,
         xs: np.ndarray,
         ax: plt.Axes,
@@ -28,7 +28,7 @@ def plot_probability_density_q(
     return ax.imshow(p, origin='lower', extent=extent, aspect='auto', alpha=alpha)
 
 def plot_probability_density_z(
-        fp: StochasticFlowPolicy,
+        fp: StreamingFlowPolicyStochastic,
         ts: np.ndarray,
         xs: np.ndarray,
         ax: plt.Axes,
@@ -52,7 +52,7 @@ def plot_probability_density_z(
 
 
 def plot_probability_density_with_trajectories_q(
-        fp: StochasticFlowPolicy,
+        fp: StreamingFlowPolicyStochastic,
         ax: plt.Axes,
         q_starts: List[float | None],
         z_starts: List[float],
@@ -86,7 +86,7 @@ def plot_probability_density_with_trajectories_q(
 
 
 def plot_probability_density_with_trajectories_z(
-        fp: StochasticFlowPolicy,
+        fp: StreamingFlowPolicyStochastic,
         ax: plt.Axes,
         q_starts: List[float | None],
         z_starts: List[float],

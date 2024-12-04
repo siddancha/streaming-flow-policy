@@ -2,10 +2,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 from typing import List
 
-from flow_policy.toy.flow_policy import FlowPolicy
+from flow_policy.toy.flow_policy import StreamingFlowPolicyDeterministic
 
 def plot_probability_density(
-        fp: FlowPolicy,
+        fp: StreamingFlowPolicyDeterministic,
         ts: np.ndarray,
         xs: np.ndarray,
         ax: plt.Axes,
@@ -28,7 +28,12 @@ def plot_probability_density(
     extent = [xs.min(), xs.max(), ts.min(), ts.max()]
     return ax.imshow(p, origin='lower', extent=extent, aspect=aspect, alpha=alpha)
 
-def plot_probability_density_and_vector_field(fp: FlowPolicy, ax: plt.Axes, num_points=200, num_quiver=20):
+def plot_probability_density_and_vector_field(
+        fp: StreamingFlowPolicyDeterministic,
+        ax: plt.Axes,
+        num_points: int=200,
+        num_quiver: int=20,
+    ):
     """
     Example of how to call the function:
 
@@ -64,7 +69,11 @@ def plot_probability_density_and_vector_field(fp: FlowPolicy, ax: plt.Axes, num_
 
     return heatmap
 
-def plot_probability_density_and_streamlines(fp: FlowPolicy, ax: plt.Axes, num_points: int=400):
+def plot_probability_density_and_streamlines(
+        fp: StreamingFlowPolicyDeterministic,
+        ax: plt.Axes,
+        num_points: int=400,
+    ):
     """
     Example of how to call the function:
 
@@ -94,7 +103,7 @@ def plot_probability_density_and_streamlines(fp: FlowPolicy, ax: plt.Axes, num_p
     return heatmap
 
 def plot_probability_density_with_trajectories(
-        fp: FlowPolicy,
+        fp: StreamingFlowPolicyDeterministic,
         ax: plt.Axes,
         xs_start: List[float | None],
         linewidth: float=1,
@@ -107,7 +116,7 @@ def plot_probability_density_with_trajectories(
     heatmap = plot_probability_density(fp, ts, xs, ax, alpha=heatmap_alpha)
 
     for x_start in xs_start:
-        x_start = x_start if x_start is not None else np.random.randn() * fp.σ
+        x_start = x_start if x_start is not None else np.random.randn() * fp.σ0
         traj = fp.ode_integrate(x_start)
         ts = np.linspace(0, 1, 200)
         xs = traj.vector_values(ts)
