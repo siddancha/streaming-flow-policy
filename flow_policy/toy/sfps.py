@@ -4,7 +4,7 @@ from typing import List, Tuple
 
 from pydrake.all import Trajectory
 
-from flow_policy.toy.base_policy import StreamingFlowPolicyBase
+from flow_policy.toy.sfp_base import StreamingFlowPolicyBase
 
 
 class StreamingFlowPolicyStochastic (StreamingFlowPolicyBase):

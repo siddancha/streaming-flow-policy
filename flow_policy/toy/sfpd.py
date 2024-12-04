@@ -3,7 +3,7 @@ import numpy as np
 
 from pydrake.all import Trajectory
 
-from flow_policy.toy.base_policy import StreamingFlowPolicyBase
+from flow_policy.toy.sfp_base import StreamingFlowPolicyBase
 
 
 class StreamingFlowPolicyDeterministic (StreamingFlowPolicyBase):

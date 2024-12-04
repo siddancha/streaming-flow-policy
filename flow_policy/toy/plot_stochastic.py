@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from typing import List
 
-from flow_policy.toy.stochastic_flow_policy import StreamingFlowPolicyStochastic
+from flow_policy.toy.sfps import StreamingFlowPolicyStochastic
 
 def plot_probability_density_q(
         fp: StreamingFlowPolicyStochastic,

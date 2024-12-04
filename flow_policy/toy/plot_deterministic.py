@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from typing import List
 
-from flow_policy.toy.flow_policy import StreamingFlowPolicyDeterministic
+from flow_policy.toy.sfpd import StreamingFlowPolicyDeterministic
 
 def plot_probability_density(
         fp: StreamingFlowPolicyDeterministic,
