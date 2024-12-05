@@ -1,8 +1,9 @@
 from typing import List, Tuple
 from abc import ABC, abstractmethod
 import numpy as np
-from scipy.stats import multivariate_normal
-
+import torch; torch.set_default_dtype(torch.double)
+from torch import Tensor
+from torch.distributions import MultivariateNormal
 from pydrake.all import PiecewisePolynomial, Trajectory
 
 
@@ -22,130 +23,179 @@ class StreamingFlowPolicyBase (ABC):
         """
         self.D = dim
         self.trajectories = trajectories
-        self.π = np.array(prior)  # (K,)
+        self.π = torch.tensor(prior, dtype=torch.double)  # (K,)
+
+    @staticmethod
+    def q̃t(traj: Trajectory, t: Tensor) -> Tensor:
+        """
+        Args:
+            traj (Trajectory): Demonstration trajectory.
+            t (Tensor, dtype=double, shape=(*BS)): Time values in [0,1].
+
+        Returns:
+            Tensor, dtype=double, shape=(*BS, D): Configuration values at time t.
+        """
+        BS = t.shape
+        q̃t = traj.vector_values(t.ravel().numpy())  # (D, *BS)
+        q̃t = torch.tensor(q̃t, dtype=torch.double).reshape(-1, *BS)  # (D, *BS)
+        q̃t = q̃t.movedim(0, -1)  # (*BS, D)
+        return q̃t
+
+    @staticmethod
+    def ṽt(traj: Trajectory, t: Tensor) -> Tensor:
+        """
+        Args:
+            traj (Trajectory): Demonstration trajectory.
+            t (Tensor, dtype=double, shape=(*BS)): Time values in [0,1].
+
+        Returns:
+            Tensor, dtype=double, shape=(*BS, D): Velocity at time t.
+        """
+        BS = t.shape
+        traj_ṽ = traj.MakeDerivative()
+        ṽt = traj_ṽ.vector_values(t.ravel().numpy())  # (D, *BS)
+        ṽt = torch.tensor(ṽt, dtype=torch.double).reshape(-1, *BS)  # (D, *BS)
+        ṽt = ṽt.movedim(0, -1)  # (*BS, D)
+        return ṽt
 
     @abstractmethod
-    def Ab(self, traj: Trajectory, t: float) -> Tuple[np.ndarray, np.ndarray]:
+    def Ab(self, traj: Trajectory, t: Tensor) -> Tuple[Tensor, Tensor]:
         """
+        Args:
+            traj (Trajectory): Demonstration trajectory.
+            t (Tensor, dtype=double, shape=(*BS)): Time values in [0,1].
+
         Returns:
-            A (np.ndarray, dtype=float, shape=(D, D)): Transition matrix.
-            b (np.ndarray, dtype=float, shape=(D,)): Bias vector.
+            A (Tensor, dtype=double, shape=(*BS, D, D)): Transition matrix.
+            b (Tensor, dtype=double, shape=(*BS, D)): Bias vector.
         """
         return NotImplementedError
 
     @abstractmethod
-    def μΣ0(self, traj: Trajectory) -> Tuple[np.ndarray, np.ndarray]:
+    def μΣ0(self, traj: Trajectory) -> Tuple[Tensor, Tensor]:
         """
         Compute the mean and covariance matrix of the conditional flow at time t=0.
 
         Returns:
-            np.ndarray, dtype=float, shape=(D,): Mean at time t=0.
-            np.ndarray, dtype=float, shape=(D, D): Covariance matrix at time t=0.
+            Tensor, dtype=double, shape=(D,): Mean at time t=0.
+            Tensor, dtype=double, shape=(D, D): Covariance matrix at time t=0.
         """
         return NotImplementedError
 
-    def μΣt(self, traj: Trajectory, t: float) -> Tuple[np.ndarray, np.ndarray]:
+    def μΣt(self, traj: Trajectory, t: Tensor) -> Tuple[Tensor, Tensor]:
         """
         Compute the mean and covariance matrix of the conditional flows at time t.
-        
+
         Args:
             traj (Trajectory): Demonstration trajectory.
-            t (float): Time value in [0,1].
-            
-        Returns:
-            np.ndarray, dtype=float, shape=(D,): Mean at time t.
-            np.ndarray, dtype=float, shape=(D, D): Covariance matrix at time t.
-        """
-        μ0, Σ0 = self.μΣ0(traj)
-        A, b = self.Ab(traj, t)
-        μt = A @ μ0 + b
-        Σt = A @ Σ0 @ A.T
-        return μt, Σt
+            t (np.ndarray, dtype=float, shape=(*BS)): Time values in [0,1].
 
-    def pdf_conditional(self, traj: Trajectory, x: np.ndarray, t: float) -> float:
+        Returns:
+            Tensor, dtype=double, shape=(*BS, D): Mean at time t.
+            Tensor, dtype=double, shape=(*BS, D, D): Covariance matrix at time t.
+        """
+        μ0, Σ0 = self.μΣ0(traj)  # (D,) and (D, D)
+        A, b = self.Ab(traj, t)  # (*BS, D, D) and (*BS, D)
+        AT = A.transpose(-1, -2)  # (*BS, D, D)
+        μt = A @ μ0 + b  # (*BS, D)
+        Σt = A @ Σ0 @ AT  # (*BS, D, D)
+        return μt, Σt  # (*BS, D) and (*BS, D, D)
+
+    def pdf_conditional(self, traj: Trajectory, x: Tensor, t: Tensor) -> Tensor:
         """
         Compute probability of the conditional flow at state x and time t for
         the given trajectory.
 
         Args:
             traj (Trajectory): Demonstration trajectory.
-            x (np.ndarray, dtype=float, shape=(D,)): State values.
-            t (float): Time value in [0,1].
+            x (Tensor, dtype=double, shape=(*BS, D)): State values.
+            t (Tensor, dtype=double, shape=(*BS)): Time values in [0,1].
 
         Returns:
-            float: Probability of the conditional flow at state x and time t.
+            (Tensor, dtype=double, shape=(*BS)): Probability of the conditional
+                flow at state x and time t.
         """
-        assert x.shape == (self.D,)
-        μt, Σt = self.μΣt(traj, t)  # (D,) and (D, D)
-        dist = multivariate_normal(mean=μt, cov=Σt)
-        return dist.pdf(x)  # (D,)
+        assert x.shape[-1] == self.D
+        μt, Σt = self.μΣt(traj, t)  # (*BS, D) and (*BS, D, D)
+        dist = MultivariateNormal(loc=μt, covariance_matrix=Σt)
+        log_pdf: Tensor = dist.log_prob(x)  # (*BS)
+        return log_pdf.exp()  # (*BS)
 
-    def pdf_marginal(self, x: np.ndarray, t: float) -> float:
+    def pdf_marginal(self, x: Tensor, t: Tensor) -> Tensor:
         """
         Compute probability of the marginal flow at state x and time t.
 
         Args:
-            x (np.ndarray, dtype=float, shape=(D,)): State values.
-            t (float): Time value in [0,1].
+            x (Tensor, dtype=double, shape=(*BS, D)): State values.
+            t (Tensor, dtype=double, shape=(*BS)): Time values in [0,1].
 
         Returns:
-            float: Probability of the marginal flow at state x and time t.
+            (Tensor, dtype=double, shape=(*BS)): Probability of the marginal flow
+                at state x and time t.
         """
         prob = 0
         for π, traj in zip(self.π, self.trajectories):
-            prob += π * self.pdf_conditional(traj, x, t)
-        return prob
+            prob += π * self.pdf_conditional(traj, x, t)  # (*BS)
+        return prob  # (*BS)
 
     @abstractmethod
-    def u_conditional(self, traj: Trajectory, x: np.ndarray, t: float) -> np.ndarray:
+    def u_conditional(self, traj: Trajectory, x: Tensor, t: Tensor) -> Tensor:
         """
         Compute the conditional velocity field for a given trajectory.
 
         Args:
             traj (Trajectory): Demonstration trajectory.
-            x (np.ndarray, dtype=float, shape=(D,)): State values.
-            t (float): Time value in [0,1].
+            x (Tensor, dtype=double, shape=(*BS, D)): State values.
+            t (Tensor, dtype=double, shape=(*BS)): Time values in [0,1].
 
         Returns:
-            (np.ndarray, dtype=float, shape=(D,)): Velocity of the conditional flow.
+            (Tensor, dtype=double, shape=(*BS, D)): Velocity of the conditional flow.
         """
         raise NotImplementedError
 
-    def u_marginal(self, x: np.ndarray, t: float) -> np.ndarray:
+    def u_marginal(self, x: Tensor, t: Tensor) -> Tensor:
         """
         Args:
-            x (np.ndarray, dtype=float, shape=(D,)): State values.
-            t (float): Time value in [0,1].
+            x (Tensor, dtype=double, shape=(*BS, D)): State values.
+            t (Tensor, dtype=double, shape=(*BS)): Time values in [0,1].
 
         Returns:
-            (np.ndarray, dtype=float, shape=(D,)): Marginal velocities.
+            (Tensor, dtype=double, shape=(D,)): Marginal velocities.
         """
-        likelihoods = np.hstack([self.pdf_conditional(traj, x, t) for traj in self.trajectories])  # (K,)
-        velocities = np.vstack([self.u_conditional(traj, x, t) for traj in self.trajectories])  # (K, D)
+        likelihoods = torch.stack([self.pdf_conditional(traj, x, t) for traj in self.trajectories], dim=-1)  # (*BS, K)
+        velocities = torch.stack([self.u_conditional(traj, x, t) for traj in self.trajectories], dim=-2)  # (*BS, K, D)
 
-        posterior = self.π * likelihoods  # (K,)
-        normalizing_constant: np.ndarray = np.sum(posterior)  # (,)
-        posterior = posterior / normalizing_constant  # (K,)
-        posterior = posterior.reshape(-1, 1)  # (K, 1)
+        posterior = self.π * likelihoods  # (*BS, K)
+        normalizing_constant = posterior.sum(dim=-1, keepdim=True)  # (*BS, 1)
+        posterior = posterior / normalizing_constant  # (*BS, K)
+        posterior = posterior.unsqueeze(-1)  # (*BS, K, 1)
+        assert posterior.isfinite().all()
 
-        us = (posterior * velocities).sum(axis=0)  # (D,)
+        us = (posterior * velocities).sum(dim=-2)  # (*BS, D)
+        assert us.isfinite().all()
+
         return us
 
-    def ode_integrate(self, x: np.ndarray, num_steps: int = 1000) -> Trajectory:
+    def ode_integrate(self, x: Tensor, num_steps: int = 1000) -> List[Trajectory]:
         """
         Args:
-            x (np.ndarray, dtype=float, shape=(D,)): Initial state.
+            x (Tensor, dtype=double, shape=(L, D)): Initial state.
             num_steps (int): Number of steps to integrate.
             
         Returns:
-            Trajectory: Trajectory starting from x.
+            List[Trajectory]: Trajectories starting from x.
         """
+        L = x.shape[0]
         breaks = np.linspace(0.0, 1.0, num_steps + 1)  # (N+1,)
         Δt = 1.0 / num_steps
-        samples = [x]
+        multi_traj = [x]
         for t in breaks[:-1]:
-            u = self.u_marginal(x, t)
-            x = x + Δt * u
-            samples.append(x)
-        samples = np.vstack(samples)  # (N+1, 2)
-        return PiecewisePolynomial.FirstOrderHold(breaks, samples.T)
+            u = self.u_marginal(x, torch.ones([L]) * t)  # (L, D)
+            x = x + Δt * u  # (L, D)
+            multi_traj.append(x)
+        multi_traj = torch.stack(multi_traj, dim=-2)  # (L, N+1, D)
+        multi_traj = multi_traj.numpy()  # (L, N+1, D)
+        return [
+            PiecewisePolynomial.FirstOrderHold(breaks, traj.T)
+            for traj in multi_traj
+        ]

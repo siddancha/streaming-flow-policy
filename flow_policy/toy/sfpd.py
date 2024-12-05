@@ -1,5 +1,7 @@
 from typing import List, Tuple
 import numpy as np
+import torch; torch.set_default_dtype(torch.double)
+from torch import Tensor
 
 from pydrake.all import Trajectory
 
@@ -47,36 +49,40 @@ class StreamingFlowPolicyDeterministic (StreamingFlowPolicyBase):
         self.σ0 = σ0
         self.k = k
 
-    def Ab(self, traj: Trajectory, t: float) -> Tuple[np.ndarray, np.ndarray]:
+    def Ab(self, traj: Trajectory, t: Tensor) -> Tuple[Tensor, Tensor]:
         """
+        Args:
+            traj (Trajectory): Demonstration trajectory.
+            t (Tensor, dtype=double, shape=(*BS)): Time values in [0,1].
+
         Returns:
-            A (np.ndarray, dtype=float, shape=(1, 1)): Transition matrix.
-            b (np.ndarray, dtype=float, shape=(1,)): Bias vector.
+            A (Tensor, dtype=double, shape=(*BS, 1, 1)): Transition matrix.
+            b (Tensor, dtype=double, shape=(*BS, 1)): Bias vector.
         """
-        q̃0 = traj.value(0).item()
-        q̃t = traj.value(t).item()
+        q̃0: float = traj.value(0).item()
+        q̃t = self.q̃t(traj, t)  # (*BS, 1)
         k = self.k
 
-        exp_neg_kt = np.exp(-k * t)
-        A = np.array([[exp_neg_kt]])  # (1, 1)
-        b = np.array([q̃t - q̃0 * exp_neg_kt])  # (1,)
+        exp_neg_kt = torch.exp(-k * t)  # (*BS)
+        A = exp_neg_kt.unsqueeze(-1).unsqueeze(-1)  # (*BS, 1, 1)
+        b = q̃t - (q̃0 * exp_neg_kt).unsqueeze(-1)  # (*BS, 1)
         return A, b
 
-    def μΣ0(self, traj: Trajectory) -> np.ndarray:
+    def μΣ0(self, traj: Trajectory) -> Tuple[Tensor, Tensor]:
         """
         Compute the mean and covariance matrix of the conditional flow at time t=0.
 
         Returns:
-            np.ndarray, dtype=float, shape=(1,): Mean at time t=0.
-            np.ndarray, dtype=float, shape=(1, 1): Covariance matrix at time t=0.
+            Tensor, dtype=double, shape=(1,): Mean at time t=0.
+            Tensor, dtype=double, shape=(1, 1): Covariance matrix at time t=0.
         """
-        q̃0 = traj.value(0).item()
+        q̃0: float = traj.value(0).item()
         σ0 = self.σ0
-        μ0 = np.array([q̃0])  # (1,)
-        Σ0 = np.array([[np.square(σ0)]])  # (1, 1)
+        μ0 = torch.tensor([q̃0], dtype=torch.double)  # (1,)
+        Σ0 = torch.tensor([[np.square(σ0)]], dtype=torch.double)  # (1, 1)
         return μ0, Σ0
 
-    def u_conditional(self, traj: Trajectory, x: np.ndarray, t: float) -> np.ndarray:
+    def u_conditional(self, traj: Trajectory, x: Tensor, t: Tensor) -> Tensor:
         """
         Compute the conditional velocity field for a given trajectory.
 
@@ -88,16 +94,16 @@ class StreamingFlowPolicyDeterministic (StreamingFlowPolicyBase):
 
         Args:
             traj (Trajectory): Demonstration trajectory.
-            x (np.ndarray, dtype=float, shape=(1,)): Configuration value.
-            t (float): Time value in [0,1].
-            
+            x (Tensor, dtype=double, shape=(*BS, 1)): Configuration values.
+            t (Tensor, dtype=double, shape=(*BS)): Time values in [0,1].
+
         Returns:
-            (np.ndarray, dtype=float, shape=(1)): Velocity of the conditional flow.
+            Tensor, dtype=double, shape=(*BS, 1): Velocity of the conditional flow.
         """
-        qt = x  # (1,)
-        q̃t = traj.value(t).item()
-        ṽt = traj.EvalDerivative(t).item()
+        qt = x  # (*BS, 1)
+        q̃t = self.q̃t(traj, t)  # (*BS, 1)
+        ṽt = self.ṽt(traj, t)  # (*BS, 1)
         k = self.k
 
-        u = -k * (qt - q̃t) + ṽt  # (1,)
+        u = -k * (qt - q̃t) + ṽt  # (*BS, 1)
         return u

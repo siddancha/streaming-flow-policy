@@ -1,25 +1,34 @@
+from typing import List
 import numpy as np
 import matplotlib.pyplot as plt
-from typing import List
+import torch; torch.set_default_dtype(torch.double)
+from torch import Tensor
 
 from flow_policy.toy.sfpd import StreamingFlowPolicyDeterministic
 
 def plot_probability_density(
         fp: StreamingFlowPolicyDeterministic,
-        ts: np.ndarray,
-        xs: np.ndarray,
+        ts: Tensor,
+        xs: Tensor,
         ax: plt.Axes,
         normalize: bool=True,
         alpha: float=1,
         aspect: str | float = 2,
     ):
-    p = np.zeros((len(ts), len(xs)))  # (T, X)
-    for i in range(len(ts)):
-        for j in range(len(xs)):
-            p[i,j] = fp.pdf_marginal(xs[[j]], ts[i])
+    """
+    Args:
+        fp (StreamingFlowPolicyDeterministic): Flow policy.
+        ts (Tensor, dtype=float, shape=(T, X)): Time values in [0,1].
+        xs (Tensor, dtype=float, shape=(T, X)): Configuration values.
+        ax (plt.Axes): Axes to plot on.
+        normalize (bool): Whether to normalize the probability density.
+        alpha (float): Alpha value for the probability density.
+        aspect (str | float): Aspect ratio.
+    """
+    p = fp.pdf_marginal(xs.unsqueeze(-1), ts)  # (T, X)
 
     if normalize:
-        p = p / p.max(axis=1, keepdims=True)  # (T, X)
+        p = p / p.max(dim=1, keepdims=True).values  # (T, X)
 
     ax.set_xlim(-1, 1)
     ax.set_ylim(0, 1)
@@ -45,20 +54,18 @@ def plot_probability_density_and_vector_field(
     plt.colorbar(im, ax=ax, label='Probability Density')
     plt.show()
     """
-    ts = np.linspace(0, 1, num_points)  # (T,)
-    xs = np.linspace(-1, 1, num_points)  # (X,)
+    ts = torch.linspace(0, 1, num_points)  # (T,)
+    xs = torch.linspace(-1, 1, num_points)  # (X,)
+    ts, xs = torch.meshgrid(ts, xs, indexing='ij')  # (T, X)
 
     # Plot probability density
     heatmap = plot_probability_density(fp, ts, xs, ax)
 
     # Compute marginal velocity field.
-    u = np.zeros((len(ts), len(xs)))  # (T, X)
-    for i in range(len(ts)):
-        for j in range(len(xs)):
-            u[i,j] = fp.u_marginal(xs[[j]], ts[i])
+    u = fp.u_marginal(xs.unsqueeze(-1), ts)  # (T, X, 1)
+    u = u.squeeze(-1)  # (T, X)
 
     # Plot quiver with reduced size
-    ts, xs = np.meshgrid(ts, xs, indexing='ij')  # (T, X)
     quiver_step_x = xs.shape[1] // num_quiver
     quiver_step_t = ts.shape[0] // num_quiver
     ax.quiver(
@@ -90,22 +97,25 @@ def plot_probability_density_and_streamlines(
     plt.colorbar(im, ax=ax, label='Probability Density')
     plt.show()
     """
-    ts = np.linspace(0, 1, num_points)  # (T,)
-    xs = np.linspace(-1, 1, num_points)  # (X,)
+    ts = torch.linspace(0, 1, num_points)  # (T,)
+    xs = torch.linspace(-1, 1, num_points)  # (X,)
+    ts, xs = torch.meshgrid(ts, xs, indexing='ij')  # (T, X)
 
     # Plot log probability
     heatmap = plot_probability_density(fp, ts, xs, ax)
 
     # Compute marginal velocity field.
-    u = np.zeros((len(ts), len(xs)))  # (T, X)
-    for i in range(len(ts)):
-        for j in range(len(xs)):
-            u[i,j] = fp.u_marginal(xs[[j]], ts[i])
+    u = fp.u_marginal(xs.unsqueeze(-1), ts)  # (T, X, 1)
+    u = u.squeeze(-1)  # (T, X)
 
     # Plot streamlines
-    ts, xs = np.meshgrid(ts, xs, indexing='ij')  # (T, X)
-    ax.streamplot(x=xs[0], y=ts[:, 0], u=u, v=np.ones_like(u), 
-                  color='white', density=1, linewidth=0.5, arrowsize=0.5)
+    ax.streamplot(
+        x=xs[0].numpy(),
+        y=ts[:, 0].numpy(),
+        u=u.numpy(),
+        v=np.ones(u.shape), 
+        color='white', density=1, linewidth=0.5, arrowsize=0.5
+    )
 
     ax.set_xlim(-1, 1)
     ax.set_ylim(0, 1)
@@ -123,15 +133,22 @@ def plot_probability_density_with_trajectories(
         alpha: float=0.5,
         heatmap_alpha: float=1,
     ):
-    ts = np.linspace(0, 1, 200)  # (T,)
-    xs = np.linspace(-1, 1, 200)  # (X,)
+    ts = torch.linspace(0, 1, 200)  # (T,)
+    xs = torch.linspace(-1, 1, 200)  # (X,)
+    ts, xs = torch.meshgrid(ts, xs, indexing='ij')  # (T, X)
 
     heatmap = plot_probability_density(fp, ts, xs, ax, alpha=heatmap_alpha)
 
-    for x_start in xs_start:
-        x_start = x_start if x_start is not None else np.random.randn() * fp.σ0
-        traj = fp.ode_integrate(np.array([x_start]))
-        xs = traj.vector_values(ts)
+    # Replace None with random samples from N(0, σ₀²)
+    xs_start = [
+        x_start if x_start is not None else np.random.randn() * fp.σ0
+        for x_start in xs_start
+    ]
+    xs_start = torch.tensor(xs_start, dtype=torch.double).unsqueeze(-1)  # (L, 1)
+    list_traj = fp.ode_integrate(xs_start)
+    ts = np.linspace(0, 1, 200)  # (T,)
+    for traj in list_traj:
+        xs = traj.vector_values(ts)  # (1, T)
         ax.plot(xs[0], ts, color='red', linewidth=linewidth, alpha=alpha)
 
     ax.tick_params(axis='both', which='both', length=0, labelbottom=False, labelleft=False)
