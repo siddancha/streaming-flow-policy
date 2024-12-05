@@ -25,7 +25,7 @@ def plot_probability_density(
         alpha (float): Alpha value for the probability density.
         aspect (str | float): Aspect ratio.
     """
-    p = fp.pdf_marginal(xs.unsqueeze(-1), ts)  # (T, X)
+    p = fp.log_pdf_marginal(xs.unsqueeze(-1), ts).exp()  # (T, X)
 
     if normalize:
         p = p / p.max(dim=1, keepdims=True).values  # (T, X)
