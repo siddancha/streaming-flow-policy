@@ -60,12 +60,12 @@ class StreamingFlowPolicyDeterministic (StreamingFlowPolicyBase):
             b (Tensor, dtype=double, shape=(*BS, 1)): Bias vector.
         """
         q̃0: float = traj.value(0).item()
-        q̃t = self.q̃t(traj, t)  # (*BS, 1)
+        q̃t = self.q̃t(traj, t)[..., 0]  # (*BS)
         k = self.k
 
         exp_neg_kt = torch.exp(-k * t)  # (*BS)
-        A = exp_neg_kt.unsqueeze(-1).unsqueeze(-1)  # (*BS, 1, 1)
-        b = q̃t - (q̃0 * exp_neg_kt).unsqueeze(-1)  # (*BS, 1)
+        A = self.matrix_stack([[exp_neg_kt]])  # (*BS, 1, 1)
+        b = (q̃t - q̃0 * exp_neg_kt).unsqueeze(-1)  # (*BS, 1)
         return A, b
 
     def μΣ0(self, traj: Trajectory) -> Tuple[Tensor, Tensor]:
@@ -94,11 +94,11 @@ class StreamingFlowPolicyDeterministic (StreamingFlowPolicyBase):
 
         Args:
             traj (Trajectory): Demonstration trajectory.
-            x (Tensor, dtype=double, shape=(*BS, 1)): Configuration values.
+            x (Tensor, dtype=double, shape=(*BS, 1)): State values.
             t (Tensor, dtype=double, shape=(*BS)): Time values in [0,1].
 
         Returns:
-            Tensor, dtype=double, shape=(*BS, 1): Velocity of the conditional flow.
+            (Tensor, dtype=double, shape=(*BS, 1)): Velocity of conditional flow.
         """
         qt = x  # (*BS, 1)
         q̃t = self.q̃t(traj, t)  # (*BS, 1)

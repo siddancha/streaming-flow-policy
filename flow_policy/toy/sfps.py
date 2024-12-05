@@ -1,5 +1,8 @@
 import numpy as np
 from scipy.stats import multivariate_normal
+import torch; torch.set_default_dtype(torch.double)
+from torch import Tensor
+from torch.distributions import MultivariateNormal
 from typing import List, Tuple
 
 from pydrake.all import Trajectory
@@ -51,111 +54,114 @@ class StreamingFlowPolicyStochastic (StreamingFlowPolicyBase):
         # Residual standard deviation: √(σ₁² - σ₀²)
         self.σr = np.sqrt(np.square(σ1) - np.square(σ0))
 
-    def Ab(self, traj: Trajectory, t: float) -> Tuple[np.ndarray, np.ndarray]:
+    def Ab(self, traj: Trajectory, t: Tensor) -> Tuple[Tensor, Tensor]:
         """
         Returns:
-            A (np.ndarray, dtype=float, shape=(2, 2)): Transition matrix.
-            b (np.ndarray, dtype=float, shape=(2,)): Bias vector.
+            A (Tensor, dtype=double, shape=(*BS, 2, 2)): Transition matrix.
+            b (Tensor, dtype=double, shape=(*BS, 2)): Bias vector.
         """
+        q̃0: float = traj.value(0).item()
+        q̃t = self.q̃t(traj, t)[..., 0]  # (*BS)
         σ1 = self.σ1  # (,)
         σr = self.σr  # (,)
-        q̃0 = traj.value(0).item()
-        q̃t = traj.value(t).item()
 
-        b = np.array([q̃t - q̃0, t * q̃t])
-        A = np.array([
+        b = torch.stack([q̃t - q̃0, t * q̃t], dim=-1)  # (*BS, 2)
+        A = self.matrix_stack([
             [1,           σr * t],
             [0, 1 - (1 - σ1) * t],
-        ])
+        ])  # (*BS, 2, 2)
         return A, b
 
-    def μΣ0(self, traj: Trajectory) -> Tuple[np.ndarray, np.ndarray]:
+    def μΣ0(self, traj: Trajectory) -> Tuple[Tensor, Tensor]:
         """
         Compute the mean and covariance matrix of the conditional flow at time t=0.
 
         Returns:
-            np.ndarray, dtype=float, shape=(2,): Mean at time t=0.
-            np.ndarray, dtype=float, shape=(2, 2): Covariance matrix at time t=0.
+            Tensor, dtype=double, shape=(*BS, 2): Mean at time t=0.
+            Tensor, dtype=double, shape=(*BS, 2, 2): Covariance matrix at time t=0.
         """
         q̃0 = traj.value(0).item()
         σ0 = self.σ0
-        μ0 = np.array([q̃0, 0])  # (2,)
-        Σ0 = np.array([[np.square(σ0), 0], [0, 1]])  # (2, 2)
+        μ0 = torch.tensor([q̃0, 0], dtype=torch.double)  # (2,)
+        Σ0 = torch.tensor([[np.square(σ0), 0], [0, 1]], dtype=torch.double)  # (2, 2)
         return μ0, Σ0
 
-    def pdf_conditional_q(self, traj: Trajectory, q: float, t: float) -> float:
+    def log_pdf_conditional_q(self, traj: Trajectory, q: Tensor, t: Tensor) -> Tensor:
         """
-        Compute probability of the conditional flow at configuration q and time
+        Compute log-probability of the conditional flow at configuration q and time
         t, for the given trajectory.
         
         Args:
             traj (Trajectory): Demonstration trajectory.
-            q (float): Configuration.
-            t (float): Time value in [0,1].
+            q (Tensor, dtype=double, shape=(*BS, 1)): Configuration.
+            t (Tensor, dtype=double, shape=(*BS)): Time value in [0,1].
             
         Returns:
-            float: Probability of the conditional flow at state x and time t.
+            (Tensor, dtype=double, shape=(*BS)): Log-probability of the
+                conditional flow at configuration q and time t.
         """
-        assert isinstance(q, float)
-        μ_qz, Σ_qz = self.μΣt(traj, t)
-        μ_q, Σ_q = μ_qz[0], Σ_qz[0, 0]
-        dist = multivariate_normal(mean=μ_q, cov=Σ_q)
-        return dist.pdf(q)
+        μ_qz, Σ_qz = self.μΣt(traj, t)  # (*BS, 2), (*BS, 2, 2)
+        μ_q = μ_qz[..., 0:1]  # (*BS, 1)
+        Σ_q = Σ_qz[..., 0:1, 0:1]  # (*BS, 1, 1)
+        dist = MultivariateNormal(loc=μ_q, covariance_matrix=Σ_q)  # BS=(*BS) ES=(1,)
+        return dist.log_prob(q)  # (*BS)
 
-    def pdf_marginal_q(self, q: float, t: float) -> float:
+    def log_pdf_marginal_q(self, q: Tensor, t: Tensor) -> Tensor:
         """
-        Compute probability of the marginal flow at configuration q and time t.
+        Compute log-probability of the marginal flow at configuration q and time t.
         
         Args:
-            q (float): Configuration.
-            t (float): Time value in [0,1].
+            q (Tensor, dtype=double, shape=(*BS, 1)): Configuration.
+            t (Tensor, dtype=double, shape=(*BS)): Time value in [0,1].
             
         Returns:
-            float: Probability of the marginal flow at configuration q and time t.
+            (Tensor, dtype=double, shape=(*BS)): Log-probability of the marginal
+                flow at configuration q and time t.
         """
-        assert isinstance(q, float)
-        prob = 0
+        log_pdf = torch.tensor(-torch.inf, dtype=torch.double)
         for π, traj in zip(self.π, self.trajectories):
-            prob += π * self.pdf_conditional_q(traj, q, t)
-        return prob
+            log_pdf_i = π.log() + self.log_pdf_conditional_q(traj, q, t)  # (*BS)
+            log_pdf = torch.logaddexp(log_pdf, log_pdf_i)  # (*BS)
+        return log_pdf  # (*BS)
 
-    def pdf_conditional_z(self, traj: Trajectory, z: float, t: float) -> float:
+    def log_pdf_conditional_z(self, traj: Trajectory, z: Tensor, t: Tensor) -> Tensor:
         """
-        Compute probability of the conditional flow at z and time t, for each
-        of the K trajectories.
+        Compute log-probability of the conditional flow at latent z and time t.
         
         Args:
             traj (Trajectory): Demonstration trajectory.
-            z (float): Latent variable value.
-            t (float): Time value in [0,1].
+            z (Tensor, dtype=double, shape=(*BS, 1)): Latent variable value.
+            t (Tensor, dtype=double, shape=(*BS)): Time value in [0,1].
             
         Returns:
-            float: Probability of the conditional flow at z and time t.
+            (Tensor, dtype=double, shape=(*BS)): Log-probability of the
+                conditional flow at latent z and time t.
         """
-        assert isinstance(z, float)
-        μ_qz, Σ_qz = self.μΣt(traj, t)
-        μ_z, Σ_z = μ_qz[1], Σ_qz[1, 1]
-        dist = multivariate_normal(mean=μ_z, cov=Σ_z)
-        return dist.pdf(z)
+        μ_qz, Σ_qz = self.μΣt(traj, t)  # (*BS, 2), (*BS, 2, 2)
+        μ_z = μ_qz[..., 1:2]  # (*BS, 1)
+        Σ_z = Σ_qz[..., 1:2, 1:2]  # (*BS, 1, 1)
+        dist = MultivariateNormal(loc=μ_z, covariance_matrix=Σ_z)  # BS=(*BS) ES=(1,)
+        return dist.log_prob(z)  # (*BS)
 
-    def pdf_marginal_z(self, z: float, t: float) -> float:
+    def log_pdf_marginal_z(self, z: Tensor, t: Tensor) -> Tensor:
         """
-        Compute probability of the marginal flow at z and time t.
+        Compute log-probability of the marginal flow at latent z and time t.
         
         Args:
-            z (float): Latent variable value.
-            t (float): Time value in [0,1].
+            z (Tensor, dtype=double, shape=(*BS, 1)): Latent variable value.
+            t (Tensor, dtype=double, shape=(*BS)): Time value in [0,1].
             
         Returns:
-            float: Probability of the marginal flow at z and time t.
+            (Tensor, dtype=double, shape=(*BS)): Log-probability of the marginal
+                flow at latent z and time t.
         """
-        assert isinstance(z, float)
-        prob = 0
+        log_pdf = torch.tensor(-torch.inf, dtype=torch.double)
         for π, traj in zip(self.π, self.trajectories):
-            prob += π * self.pdf_conditional_z(traj, z, t)
-        return prob
+            log_pdf_i = π.log() + self.log_pdf_conditional_z(traj, z, t)  # (*BS)
+            log_pdf = torch.logaddexp(log_pdf, log_pdf_i)  # (*BS)
+        return log_pdf  # (*BS)
 
-    def u_conditional(self, traj: Trajectory, x: np.ndarray, t: float) -> np.ndarray:
+    def u_conditional(self, traj: Trajectory, x: Tensor, t: Tensor) -> Tensor:
         """
         Compute the conditional velocity field for a given trajectory.
 
@@ -173,24 +179,24 @@ class StreamingFlowPolicyStochastic (StreamingFlowPolicyBase):
 
         Args:
             traj (Trajectory): Demonstration trajectory.
-            x (np.ndarray, dtype=float, shape=(2,)): State values.
-            t (float): Time value in [0,1].
+            x (Tensor, dtype=double, shape=(*BS, 2)): State values.
+            t (Tensor, dtype=double, shape=(*BS)): Time value in [0,1].
             
         Returns:
-            (np.ndarray, dtype=float, shape=(2)): Velocity of the conditional flow.
+            (Tensor, dtype=double, shape=(*BS, 2)): Velocity of conditional flow.
         """
-        qt, zt = x
-        q̃t = traj.value(t).item()
+        zt = x[..., 1:2]  # (*BS, 1)
+        q̃t = self.q̃t(traj, t)  # (*BS, 1)
+        ṽt = self.ṽt(traj, t)  # (*BS, 1)
+        t = t.unsqueeze(-1)  # (*BS, 1)
         σ1 = self.σ1
         σr = self.σr
-    
-        ṽt = traj.EvalDerivative(t).item()
 
         # Invert the flow and transform (qt, zt) to (q0, z0)
-        z0 = (zt - t * q̃t) / (1 - (1 - σ1) * t)
+        z0 = (zt - t * q̃t) / (1 - (1 - σ1) * t)  # (*BS, 1)
 
         # Compute velocity of the trajectory starting from (q0, z0) at t
-        uq = ṽt + σr * z0
-        uv = q̃t + t * ṽt - (1 - σ1) * z0
+        uq = ṽt + σr * z0  # (*BS, 1)
+        uv = q̃t + t * ṽt - (1 - σ1) * z0  # (*BS, 1)
 
-        return np.array([uq, uv])
+        return torch.cat([uq, uv], dim=-1)  # (*BS, 2)

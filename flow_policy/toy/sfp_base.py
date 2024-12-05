@@ -58,6 +58,28 @@ class StreamingFlowPolicyBase (ABC):
         ṽt = ṽt.movedim(0, -1)  # (*BS, D)
         return ṽt
 
+    @staticmethod
+    def matrix_stack(grid: List[List[Tensor]]) -> Tensor:
+        """
+        Args:
+            grid (List[List[(Tensor, dtype=double, shape=(*BS, D))]]): grid of
+                tensors to be stacked into a matrix.
+
+        Returns:
+            (Tensor, dtype=double, shape=(*BS, D, D)): Stacked tensors.
+        """
+        # First, convert all cells into tensors.
+        grid = [[cell if isinstance(cell, Tensor) else torch.tensor(cell, dtype=torch.double) for cell in row] for row in grid]
+
+        # Compute batch shape.
+        BS = max((cell.shape for row in grid for cell in row), default=())
+
+        # Broadcast all tensors to the same shape.
+        grid = [[cell.expand(*BS) for cell in row] for row in grid]
+
+        # Stack grid into a matrix tensor.
+        return torch.stack([torch.stack(row, dim=-1) for row in grid], dim=-2)  # (*BS, D, D)
+
     @abstractmethod
     def Ab(self, traj: Trajectory, t: Tensor) -> Tuple[Tensor, Tensor]:
         """
@@ -101,9 +123,9 @@ class StreamingFlowPolicyBase (ABC):
         Σt = A @ Σ0 @ AT  # (*BS, D, D)
         return μt, Σt  # (*BS, D) and (*BS, D, D)
 
-    def pdf_conditional(self, traj: Trajectory, x: Tensor, t: Tensor) -> Tensor:
+    def log_pdf_conditional(self, traj: Trajectory, x: Tensor, t: Tensor) -> Tensor:
         """
-        Compute probability of the conditional flow at state x and time t for
+        Compute log-probability of the conditional flow at state x and time t for
         the given trajectory.
 
         Args:
@@ -117,26 +139,26 @@ class StreamingFlowPolicyBase (ABC):
         """
         assert x.shape[-1] == self.D
         μt, Σt = self.μΣt(traj, t)  # (*BS, D) and (*BS, D, D)
-        dist = MultivariateNormal(loc=μt, covariance_matrix=Σt)
-        log_pdf: Tensor = dist.log_prob(x)  # (*BS)
-        return log_pdf.exp()  # (*BS)
+        dist = MultivariateNormal(loc=μt, covariance_matrix=Σt)  # BS=(*BS) ES=(D,)
+        return dist.log_prob(x)  # (*BS)
 
-    def pdf_marginal(self, x: Tensor, t: Tensor) -> Tensor:
+    def log_pdf_marginal(self, x: Tensor, t: Tensor) -> Tensor:
         """
-        Compute probability of the marginal flow at state x and time t.
+        Compute log-probability of the marginal flow at state x and time t.
 
         Args:
             x (Tensor, dtype=double, shape=(*BS, D)): State values.
             t (Tensor, dtype=double, shape=(*BS)): Time values in [0,1].
 
         Returns:
-            (Tensor, dtype=double, shape=(*BS)): Probability of the marginal flow
-                at state x and time t.
+            (Tensor, dtype=double, shape=(*BS)): Log-probability of the marginal
+                flow at state x and time t.
         """
-        prob = 0
+        log_pdf = torch.tensor(-torch.inf, dtype=torch.double)
         for π, traj in zip(self.π, self.trajectories):
-            prob += π * self.pdf_conditional(traj, x, t)  # (*BS)
-        return prob  # (*BS)
+            log_pdf_i = π.log() + self.log_pdf_conditional(traj, x, t)  # (*BS)
+            log_pdf = torch.logaddexp(log_pdf, log_pdf_i)  # (*BS)
+        return log_pdf  # (*BS)
 
     @abstractmethod
     def u_conditional(self, traj: Trajectory, x: Tensor, t: Tensor) -> Tensor:
@@ -162,13 +184,13 @@ class StreamingFlowPolicyBase (ABC):
         Returns:
             (Tensor, dtype=double, shape=(D,)): Marginal velocities.
         """
-        likelihoods = torch.stack([self.pdf_conditional(traj, x, t) for traj in self.trajectories], dim=-1)  # (*BS, K)
+        log_likelihoods = torch.stack([self.log_pdf_conditional(traj, x, t) for traj in self.trajectories], dim=-1)  # (*BS, K)
         velocities = torch.stack([self.u_conditional(traj, x, t) for traj in self.trajectories], dim=-2)  # (*BS, K, D)
 
-        posterior = self.π * likelihoods  # (*BS, K)
-        normalizing_constant = posterior.sum(dim=-1, keepdim=True)  # (*BS, 1)
-        posterior = posterior / normalizing_constant  # (*BS, K)
-        posterior = posterior.unsqueeze(-1)  # (*BS, K, 1)
+        log_posterior = self.π.log() + log_likelihoods  # (*BS, K)
+        log_partition_fn = log_posterior.logsumexp(dim=-1, keepdim=True)  # (*BS, 1)
+        log_posterior = log_posterior - log_partition_fn  # (*BS, K)
+        posterior = log_posterior.exp().unsqueeze(-1)  # (*BS, K, 1)
         assert posterior.isfinite().all()
 
         us = (posterior * velocities).sum(dim=-2)  # (*BS, D)
