@@ -65,14 +65,15 @@ def plot_probability_density_and_vector_field(
     u = fp.u_marginal(xs.unsqueeze(-1), ts)  # (T, X, 1)
     u = u.squeeze(-1)  # (T, X)
 
-    # Plot quiver with reduced size
-    quiver_step_x = xs.shape[1] // num_quiver
-    quiver_step_t = ts.shape[0] // num_quiver
+    # Calculate the indices to pick points vertically symmetrically.
+    quiver_indices_x = torch.linspace(0, xs.shape[1] - 1, num_quiver).round().long()
+    quiver_indices_t = torch.linspace(0, ts.shape[0] - 1, num_quiver).round().long()
+
     ax.quiver(
-        xs[::quiver_step_t, ::quiver_step_x],
-        ts[::quiver_step_t, ::quiver_step_x], 
-        u[::quiver_step_t, ::quiver_step_x],
-        np.ones_like(u)[::quiver_step_t, ::quiver_step_x], 
+        xs[quiver_indices_t][:, quiver_indices_x],
+        ts[quiver_indices_t][:, quiver_indices_x], 
+         u[quiver_indices_t][:, quiver_indices_x],
+        np.ones([len(quiver_indices_t), len(quiver_indices_x)]), 
         color='white', scale=40, width=0.002, headwidth=3, headlength=4
     )
 
