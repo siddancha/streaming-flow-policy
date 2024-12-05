@@ -3,6 +3,9 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# Builds
+docs/_build/
+
 # Editor/IDEs
 .vscode/
 
