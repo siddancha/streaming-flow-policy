@@ -13,6 +13,7 @@ dependencies = [
     "pyreadline3",
     "tqdm",
     "jupyterlab",
+    "jupyter-book",
 
     # =========================================================================
     # Main dependencies
