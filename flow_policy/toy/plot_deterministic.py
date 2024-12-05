@@ -72,9 +72,10 @@ def plot_probability_density_and_vector_field(
     ax.quiver(
         xs[quiver_indices_t][:, quiver_indices_x],
         ts[quiver_indices_t][:, quiver_indices_x], 
-         u[quiver_indices_t][:, quiver_indices_x],
+        u[quiver_indices_t][:, quiver_indices_x],
         np.ones([len(quiver_indices_t), len(quiver_indices_x)]), 
-        color='white', scale=40, width=0.002, headwidth=3, headlength=4
+        color='white', pivot='tail',
+        scale=40, width=0.002, headwidth=3, headlength=4,
     )
 
     ax.set_xlim(-1, 1)
