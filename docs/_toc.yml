@@ -2,8 +2,8 @@
 # Learn more at https://jupyterbook.org/customize/toc.html
 
 format: jb-book
-root: intro
+root: sfp
 chapters:
-- file: markdown
-- file: notebooks
-- file: markdown-notebooks
+- file: stabilizing-sfp
+- file: ess-bifurcation
+- file: ess-intersection
