@@ -109,10 +109,10 @@ def plot_probability_density_with_trajectories(
         ax.set_xlim(-1, 1)
         ax.set_ylim(0, 1)
 
-    ax1.set_title('Configuration (q) trajectories', size='medium')
+    ax1.set_title('Sampled trajectories: Configuration (q)', size='medium')
     ax1.set_xlabel('Configuration')
     ax1.set_ylabel('Time ⟶')
 
-    ax2.set_title('Latent Variable (z) trajectories', size='medium')
+    ax2.set_title('Sampled trajectories: Latent Variable (z)', size='medium')
     ax2.set_xlabel('Latent Variable (z)')
     ax2.set_ylabel('Time ⟶')
