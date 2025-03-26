@@ -18,6 +18,10 @@ jupyter-book build docs
 
 Add a symlink to the `docs` directory.
 
+#### View Jupyter book locally
+
+The HTML content is created in the `docs/_build/html` directory.
+
 #### To deploy to MIT website
 
 ```bash
