@@ -1,8 +1,11 @@
 [project]
-name = "flow-policy"
+name = "streaming-flow-policy"
 version = "0.1.0"
 description = ""
-authors = [{name = "Siddharth Ancha", email = "sancha@mit.edu"}]
+authors = [
+    {name = "Siddharth Ancha", email = "sancha@mit.edu"},
+    {name = "Sunshine Jiang", email = "sunsh16e@mit.edu "},
+]
 dependencies = [
     # =========================================================================
     # Debugging, interactive Python and Jupyter notebooks

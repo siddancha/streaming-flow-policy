@@ -3,7 +3,7 @@ from typing import List
 import torch
 from torch import Tensor
 
-from flow_policy.traj import Trajectory
+from streaming_flow_policy.traj import Trajectory
 
 
 class CubicHermitePolynomial:

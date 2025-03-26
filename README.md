@@ -1,4 +1,4 @@
-# Flow Policy
+# Streaming Flow Policy
 
 ## Building Jupyter Book
 

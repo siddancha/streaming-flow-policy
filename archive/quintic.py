@@ -3,7 +3,7 @@ from typing import List
 import torch
 from torch import Tensor
 
-from flow_policy.traj import Trajectory
+from streaming_flow_policy.traj import Trajectory
 
 class QuinticHermitePolynomial:
     def __init__(self, t0: float, Δt: float, x0: float, m0: float, a0: float, 
