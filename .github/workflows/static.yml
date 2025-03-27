@@ -42,7 +42,7 @@ jobs:
       - name: Build Jupyter Book
         run: |
           jupyter-book build docs
-          cp -r docs/_build/html/* website/
+          cp -r docs/_build/html website/notebooks
       - name: Setup Pages
         uses: actions/configure-pages@v5
       - name: Upload artifact
