@@ -1,9 +1,0 @@
-/* To remove primary sidebar (navbar on the left) */
-.bd-sidebar-primary {
-    display: none !important;
-}
-
-/* To remove sidebar toggle button */
-.sidebar-toggle {
-    display: none !important;
-}
