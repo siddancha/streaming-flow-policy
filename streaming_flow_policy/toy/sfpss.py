@@ -34,7 +34,7 @@ class StreamingFlowPolicyStochasticStabilizing (StreamingFlowPolicyBase):
             • z₀ ~ N(0, 1)
 
         • Flow trajectory at time t:
-            • q(t) = ξ(t) + (q₀ - ξ(0)) + σᵣtz₀ exp(-kt)
+            • q(t) = ξ(t) + (q₀ - ξ(0) + σᵣtz₀) exp(-kt)
             • z(t) = (1 - (1-σ₁)t)z₀ + tξ(t)
               • z starts from a pure noise sample z₀ that drifts towards the
               trajectory. Therefore, z(t) is uncorrelated with q at t=0, but
