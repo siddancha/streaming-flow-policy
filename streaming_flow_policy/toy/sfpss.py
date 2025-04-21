@@ -198,13 +198,14 @@ class StreamingFlowPolicyStochasticStabilizing (StreamingFlowPolicyBase):
         ξ̇t = self.ξ̇t(traj, t)  # (*BS, 1)
         t = t.unsqueeze(-1)  # (*BS, 1)
         αt = torch.exp(-self.k * t)  # (*BS, 1)
+        βt = torch.exp( self.k * t)  # (*BS, 1)
         ξ0 = traj.value(0).item()
         σ1 = self.σ1
         σr = self.σr
 
         # Invert the flow and transform (qt, zt) to (q0, z0)
         z0 = (zt - t * ξt) / (1 - (1 - σ1) * t)  # (*BS, 1)
-        q0 = ξ0 + (qt - ξt) * αt - σr * t * z0
+        q0 = ξ0 + (qt - ξt) * βt - σr * t * z0
 
         # Compute velocity of the trajectory starting from (q0, z0) at t
         vq = ξ̇t - self.k * (q0 - ξ0 + σr * t * z0) * αt + σr * z0 * αt  # (*BS, 1)
