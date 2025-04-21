@@ -10,30 +10,32 @@ from pydrake.all import Trajectory
 from streaming_flow_policy.toy.sfp_base import StreamingFlowPolicyBase
 
 
-class StreamingFlowPolicyStochastic (StreamingFlowPolicyBase):
+class StreamingFlowPolicyStochasticStabilizing (StreamingFlowPolicyBase):
     def __init__(
         self,
         trajectories: List[Trajectory],
         prior: List[float],
         σ0: float,
         σ1: float,
+        k: float = 0.0,
     ):
         """
         Flow policy is an extended configuration space (q(t), z(t)) where q is
         the original trajectory and z is a noise variable that starts from
         N(0, 1).
 
-        Let q̃(t) be the demonstration trajectory.
-        Define constant σᵣ = √(σ₁² - σ₀²). Note that σ₁² = σ₀² + σᵣ².
+        Let ξ(t) be the demonstration trajectory.
+        Define constant σᵣ = √(σ₁²exp(2k) - σ₀²).
+        Note that σ₁²exp(2k) = σ₀² + σᵣ².
 
         Conditional flow:
         • At time t=0, we sample:
-            • q₀ ~ N(q̃(0), σ₀)
+            • q₀ ~ N(ξ(0), σ₀²)
             • z₀ ~ N(0, 1)
 
         • Flow trajectory at time t:
-            • q(t) = q₀ + (q̃(t) - q̃(0)) + (σᵣt) z₀
-            • z(t) = (1 - (1-σ₁)t)z₀ + tq̃(t)
+            • q(t) = ξ(t) + (q₀ - ξ(0)) + σᵣtz₀ exp(-kt)
+            • z(t) = (1 - (1-σ₁)t)z₀ + tξ(t)
               • z starts from a pure noise sample z₀ that drifts towards the
               trajectory. Therefore, z(t) is uncorrelated with q at t=0, but
               eventually becomes very informative of the trajectory.
@@ -50,24 +52,29 @@ class StreamingFlowPolicyStochastic (StreamingFlowPolicyBase):
         assert 0 <= σ0 <= σ1, "σ0 must be less than or equal to σ1"
         self.σ0 = σ0
         self.σ1 = σ1
-
+        self.k = k
         # Residual standard deviation: √(σ₁² - σ₀²)
-        self.σr = np.sqrt(np.square(σ1) - np.square(σ0))
+        self.σr = np.sqrt(np.square(σ1) * np.exp(2 * self.k) - np.square(σ0))
 
     def Ab(self, traj: Trajectory, t: Tensor) -> Tuple[Tensor, Tensor]:
         """
+        Args:
+            traj (Trajectory): Demonstration trajectory.
+            t (Tensor, dtype=double, shape=(*BS)): Time value in [0,1].
+
         Returns:
             A (Tensor, dtype=double, shape=(*BS, 2, 2)): Transition matrix.
             b (Tensor, dtype=double, shape=(*BS, 2)): Bias vector.
         """
-        q̃0: float = traj.value(0).item()
-        q̃t = self.q̃t(traj, t)[..., 0]  # (*BS)
+        ξ0: float = traj.value(0).item()
+        ξt = self.ξt(traj, t)[..., 0]  # (*BS)
+        αt = torch.exp(-self.k * t)  # (*BS)
         σ1 = self.σ1  # (,)
         σr = self.σr  # (,)
 
-        b = torch.stack([q̃t - q̃0, t * q̃t], dim=-1)  # (*BS, 2)
+        b = torch.stack([ξt - ξ0 * αt, t * ξt], dim=-1)  # (*BS, 2)
         A = self.matrix_stack([
-            [1,           σr * t],
+            [αt,     σr * t * αt],
             [0, 1 - (1 - σ1) * t],
         ])  # (*BS, 2, 2)
         return A, b
@@ -80,9 +87,9 @@ class StreamingFlowPolicyStochastic (StreamingFlowPolicyBase):
             Tensor, dtype=double, shape=(*BS, 2): Mean at time t=0.
             Tensor, dtype=double, shape=(*BS, 2, 2): Covariance matrix at time t=0.
         """
-        q̃0 = traj.value(0).item()
+        ξ0 = traj.value(0).item()
         σ0 = self.σ0
-        μ0 = torch.tensor([q̃0, 0], dtype=torch.double)  # (2,)
+        μ0 = torch.tensor([ξ0, 0], dtype=torch.double)  # (2,)
         Σ0 = torch.tensor([[np.square(σ0), 0], [0, 1]], dtype=torch.double)  # (2, 2)
         return μ0, Σ0
 
@@ -166,16 +173,16 @@ class StreamingFlowPolicyStochastic (StreamingFlowPolicyBase):
         Compute the conditional velocity field for a given trajectory.
 
         • Flow trajectory at time t:
-            • q(t) = q₀ + (q̃(t) - q̃(0)) + (σᵣt) z₀
-            • z(t) = (1 - (1-σ₁)t)z₀ + tq̃(t)
+            • q(t) = ξ(t) + (q₀ - ξ(0) + σᵣtz₀) exp(-kt)
+            • z(t) = (1 - (1-σ₁)t)z₀ + tξ(t)
 
         • Conditional velocity field:
             • First, given q(t) and z(t), we want to compute q₀ and z₀.
-                • z₀ = (z(t) - tq̃(t)) / (1 - (1-σ₁)t)
-                • q₀ = q(t) - (q̃(t) - q̃(0)) - (σᵣt) z₀
+                • z₀ = (z(t) - tξ(t)) / (1 - (1-σ₁)t)
+                • q₀ = ξ(0) + (q(t) - ξ(t)) exp(kt) - σᵣtz₀
             • Then, we compute the velocity field for the conditional flow.
-                • uq(q, z, t) = ṽ(t) + σᵣz₀
-                • uz(q, z, t) = q̃(t) + tṽ(t) - (1-σ₁)z₀
+                • vq(q, z, t) = ξ̇(t) -k(q₀ - ξ(0) + σᵣtz₀)exp(-kt) + σᵣz₀exp(-kt)
+                • vz(q, z, t) = ξ(t) + tξ̇(t) - (1-σ₁)z₀
 
         Args:
             traj (Trajectory): Demonstration trajectory.
@@ -185,18 +192,22 @@ class StreamingFlowPolicyStochastic (StreamingFlowPolicyBase):
         Returns:
             (Tensor, dtype=double, shape=(*BS, 2)): Velocity of conditional flow.
         """
+        qt = x[..., 0:1]  # (*BS, 1)
         zt = x[..., 1:2]  # (*BS, 1)
-        q̃t = self.q̃t(traj, t)  # (*BS, 1)
-        ṽt = self.ṽt(traj, t)  # (*BS, 1)
+        ξt = self.ξt(traj, t)  # (*BS, 1)
+        ξ̇t = self.ξ̇t(traj, t)  # (*BS, 1)
         t = t.unsqueeze(-1)  # (*BS, 1)
+        αt = torch.exp(-self.k * t)  # (*BS, 1)
+        ξ0 = traj.value(0).item()
         σ1 = self.σ1
         σr = self.σr
 
         # Invert the flow and transform (qt, zt) to (q0, z0)
-        z0 = (zt - t * q̃t) / (1 - (1 - σ1) * t)  # (*BS, 1)
+        z0 = (zt - t * ξt) / (1 - (1 - σ1) * t)  # (*BS, 1)
+        q0 = ξ0 + (qt - ξt) * αt - σr * t * z0
 
         # Compute velocity of the trajectory starting from (q0, z0) at t
-        uq = ṽt + σr * z0  # (*BS, 1)
-        uv = q̃t + t * ṽt - (1 - σ1) * z0  # (*BS, 1)
+        vq = ξ̇t - self.k * (q0 - ξ0 + σr * t * z0) * αt + σr * z0 * αt  # (*BS, 1)
+        vz = ξt + t * ξ̇t - (1 - σ1) * z0  # (*BS, 1)
 
-        return torch.cat([uq, uv], dim=-1)  # (*BS, 2)
+        return torch.cat([vq, vz], dim=-1)  # (*BS, 2)
