@@ -168,7 +168,7 @@ class StreamingFlowPolicyStochasticStabilizing (StreamingFlowPolicyBase):
             log_pdf = torch.logaddexp(log_pdf, log_pdf_i)  # (*BS)
         return log_pdf  # (*BS)
 
-    def u_conditional(self, traj: Trajectory, x: Tensor, t: Tensor) -> Tensor:
+    def v_conditional(self, traj: Trajectory, x: Tensor, t: Tensor) -> Tensor:
         """
         Compute the conditional velocity field for a given trajectory.
 

@@ -82,7 +82,7 @@ class StreamingFlowPolicyDeterministic (StreamingFlowPolicyBase):
         Σ0 = torch.tensor([[np.square(σ0)]], dtype=torch.double)  # (1, 1)
         return μ0, Σ0
 
-    def u_conditional(self, traj: Trajectory, x: Tensor, t: Tensor) -> Tensor:
+    def v_conditional(self, traj: Trajectory, x: Tensor, t: Tensor) -> Tensor:
         """
         Compute the conditional velocity field for a given trajectory.
 

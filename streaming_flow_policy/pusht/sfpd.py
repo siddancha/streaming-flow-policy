@@ -47,7 +47,7 @@ class StreamingFlowPolicyDeterministic (Policy):
             Dict[str, np.ndarray]:
                 'obs' (np.ndarray, shape=(OBS_HORIZON, OBS_DIM), dtype=np.float32)
                 'x' (np.ndarray, shape=(ACTION_DIM,), dtype=np.float32): position
-                'u' (np.ndarray, shape=(ACTION_DIM,), dtype=np.float32): velocity
+                'v' (np.ndarray, shape=(ACTION_DIM,), dtype=np.float32): velocity
                 't' (np.ndarray, shape=(,), dtype=np.float32): time
         """
         obs, action = datum['obs'], datum['action']
@@ -75,7 +75,7 @@ class StreamingFlowPolicyDeterministic (Policy):
 
         time = np.float32(np.random.rand())  # (,)
         x = traj.value(time).T  # (1, ACTION_DIM)
-        u = traj.EvalDerivative(time).T  # (1, ACTION_DIM)
+        v = traj.EvalDerivative(time).T  # (1, ACTION_DIM)
 
         # Add noise to position
         x = x + self.sigma.item() * np.random.randn(*x.shape)  # (1, ACTION_DIM)
@@ -84,7 +84,7 @@ class StreamingFlowPolicyDeterministic (Policy):
         return {
             'obs': obs,  # (OBS_HORIZON, OBS_DIM)
             'x': x.astype(np.float32),  # (1, ACTION_DIM)
-            'u': u.astype(np.float32),  # (1, ACTION_DIM)
+            'v': v.astype(np.float32),  # (1, ACTION_DIM)
             't': time,  # (,)
         }
 
@@ -95,7 +95,7 @@ class StreamingFlowPolicyDeterministic (Policy):
             batch (Dict[str, Tensor]):
                 'obs' (Tensor, shape=(B, OBS_HORIZON, OBS_DIM))
                 'x' (Tensor, shape=(B, 1, ACTION_DIM))
-                'u' (Tensor, shape=(B, 1, ACTION_DIM))
+                'v' (Tensor, shape=(B, 1, ACTION_DIM))
                 't' (Tensor, shape=(B,))
 
         Returns:
@@ -104,7 +104,7 @@ class StreamingFlowPolicyDeterministic (Policy):
         # device transfer
         obs = batch['obs'].to(self.device)  # (B, OBS_HORIZON, OBS_DIM)
         x = batch['x'].to(self.device)  # (B, 1, ACTION_DIM)
-        u = batch['u'].to(self.device)  # (B, 1, ACTION_DIM)
+        v = batch['v'].to(self.device)  # (B, 1, ACTION_DIM)
         t = batch['t'].to(self.device)  # (B,)
         B = obs.shape[0]
 
@@ -112,12 +112,12 @@ class StreamingFlowPolicyDeterministic (Policy):
         obs_cond = obs.flatten(start_dim=1)  # (B, OBS_HORIZON * OBS_DIM)
 
         # predict the velocity
-        u_pred = self.velocity_net(
+        v_pred = self.velocity_net(
             sample=x, timestep=t, global_cond=obs_cond
         )  # (B, ACTION_DIM)
 
         # L2 loss
-        loss = nn.functional.mse_loss(u_pred, u)  # (,)
+        loss = nn.functional.mse_loss(v_pred, v)  # (,)
         return loss
 
     @torch.inference_mode()

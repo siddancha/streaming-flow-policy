@@ -161,7 +161,7 @@ class StreamingFlowPolicyStochastic (StreamingFlowPolicyBase):
             log_pdf = torch.logaddexp(log_pdf, log_pdf_i)  # (*BS)
         return log_pdf  # (*BS)
 
-    def u_conditional(self, traj: Trajectory, x: Tensor, t: Tensor) -> Tensor:
+    def v_conditional(self, traj: Trajectory, x: Tensor, t: Tensor) -> Tensor:
         """
         Compute the conditional velocity field for a given trajectory.
 
@@ -174,8 +174,8 @@ class StreamingFlowPolicyStochastic (StreamingFlowPolicyBase):
                 • z₀ = (z(t) - tξ(t)) / (1 - (1-σ₁)t)
                 • q₀ = q(t) - (ξ(t) - ξ(0)) - (σᵣt) z₀
             • Then, we compute the velocity field for the conditional flow.
-                • uq(q, z, t) = ξ̇(t) + σᵣz₀
-                • uz(q, z, t) = ξ(t) + tξ̇(t) - (1-σ₁)z₀
+                • vq(q, z, t) = ξ̇(t) + σᵣz₀
+                • vz(q, z, t) = ξ(t) + tξ̇(t) - (1-σ₁)z₀
 
         Args:
             traj (Trajectory): Demonstration trajectory.
@@ -196,7 +196,7 @@ class StreamingFlowPolicyStochastic (StreamingFlowPolicyBase):
         z0 = (zt - t * ξt) / (1 - (1 - σ1) * t)  # (*BS, 1)
 
         # Compute velocity of the trajectory starting from (q0, z0) at t
-        uq = ξ̇t + σr * z0  # (*BS, 1)
-        uv = ξt + t * ξ̇t - (1 - σ1) * z0  # (*BS, 1)
+        vq = ξ̇t + σr * z0  # (*BS, 1)
+        vz = ξt + t * ξ̇t - (1 - σ1) * z0  # (*BS, 1)
 
-        return torch.cat([uq, uv], dim=-1)  # (*BS, 2)
+        return torch.cat([vq, vz], dim=-1)  # (*BS, 2)

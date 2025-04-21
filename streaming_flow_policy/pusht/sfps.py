@@ -33,8 +33,8 @@ class StreamingFlowPolicyStochastic (Policy):
               eventually becomes very informative of the trajectory.
 
         • Conditional velocity field:
-            • uq(q, z, t) = ξ̇(t) + σᵣz₀
-            • uz(q, z, t) = ξ(t) + tξ̇(t) - (1-σ₁)z₀
+            • vq(q, z, t) = ξ̇(t) + σᵣz₀
+            • vz(q, z, t) = ξ(t) + tξ̇(t) - (1-σ₁)z₀
 
         Args:
             velocity_net (nn.Module): velocity network
@@ -71,8 +71,8 @@ class StreamingFlowPolicyStochastic (Policy):
                 'obs' (np.ndarray, shape=(OBS_HORIZON, OBS_DIM), dtype=np.float32)
                 'q' (np.ndarray, shape=(1, ACTION_DIM), dtype=np.float32): configuration
                 'z' (np.ndarray, shape=(1, ACTION_DIM), dtype=np.float32): latent variable
-                'uq' (np.ndarray, shape=(1, ACTION_DIM), dtype=np.float32): target q-velocity
-                'uz' (np.ndarray, shape=(1, ACTION_DIM), dtype=np.float32): target z-velocity
+                'vq' (np.ndarray, shape=(1, ACTION_DIM), dtype=np.float32): target q-velocity
+                'vz' (np.ndarray, shape=(1, ACTION_DIM), dtype=np.float32): target z-velocity
                 't' (np.ndarray, shape=(,), dtype=np.float32): time
         """
         obs, action = datum['obs'], datum['action']
@@ -116,15 +116,15 @@ class StreamingFlowPolicyStochastic (Policy):
         zt = (1 - (1-σ1) * time) * z0 + time * ξt
 
         # Compute conditional flow
-        uq = ξ̇t + σr * z0  # (1, ACTION_DIM)
-        uz = ξt + time * ξ̇t - (1 - σ1) * z0  # (1, ACTION_DIM)
+        vq = ξ̇t + σr * z0  # (1, ACTION_DIM)
+        vz = ξt + time * ξ̇t - (1 - σ1) * z0  # (1, ACTION_DIM)
 
         return {
             'obs': obs,  # (OBS_HORIZON, OBS_DIM)
             'q': qt.astype(np.float32),  # (1, ACTION_DIM)
             'z': zt.astype(np.float32),  # (1, ACTION_DIM)
-            'uq': uq.astype(np.float32),  # (1, ACTION_DIM)
-            'uz': uz.astype(np.float32),  # (1, ACTION_DIM)
+            'vq': vq.astype(np.float32),  # (1, ACTION_DIM)
+            'vz': vz.astype(np.float32),  # (1, ACTION_DIM)
             't': time,  # (,)
         }
 
@@ -136,8 +136,8 @@ class StreamingFlowPolicyStochastic (Policy):
                 'obs' (Tensor, shape=(B, OBS_HORIZON, OBS_DIM))
                 'q' (Tensor, shape=(B, 1, ACTION_DIM))
                 'z' (Tensor, shape=(B, 1, ACTION_DIM), dtype=np.float32): latent variable
-                'uq' (Tensor, shape=(B, 1, ACTION_DIM), dtype=np.float32): target q-velocity
-                'uz' (Tensor, shape=(B, 1, ACTION_DIM), dtype=np.float32): target z-velocity
+                'vq' (Tensor, shape=(B, 1, ACTION_DIM), dtype=np.float32): target q-velocity
+                'vz' (Tensor, shape=(B, 1, ACTION_DIM), dtype=np.float32): target z-velocity
                 't' (Tensor, shape=(B,)): time
 
         Returns:
@@ -147,8 +147,8 @@ class StreamingFlowPolicyStochastic (Policy):
         obs = batch['obs'].to(self.device)  # (B, OBS_HORIZON, OBS_DIM)
         q = batch['q'].to(self.device)  # (B, 1, ACTION_DIM)
         z = batch['z'].to(self.device)  # (B, 1, ACTION_DIM)
-        uq = batch['uq'].to(self.device)  # (B, 1, ACTION_DIM)
-        uz = batch['uz'].to(self.device)  # (B, 1, ACTION_DIM)
+        vq = batch['vq'].to(self.device)  # (B, 1, ACTION_DIM)
+        vz = batch['vz'].to(self.device)  # (B, 1, ACTION_DIM)
         t = batch['t'].to(self.device)  # (B,)
         B = obs.shape[0]
 
@@ -157,15 +157,15 @@ class StreamingFlowPolicyStochastic (Policy):
 
         # concatenate q and z
         x = torch.cat((q, z), dim=-2)  # (B, 2, ACTION_DIM)
-        u_target = torch.cat((uq, uz), dim=-2)  # (B, 2, ACTION_DIM)
+        v_target = torch.cat((vq, vz), dim=-2)  # (B, 2, ACTION_DIM)
 
         # predict the velocity
-        u_pred = self.velocity_net(
+        v_pred = self.velocity_net(
             sample=x, timestep=t, global_cond=obs_cond
         )  # (B, 2, ACTION_DIM)
 
         # L2 loss
-        loss = nn.functional.mse_loss(u_pred, u_target)  # (,)
+        loss = nn.functional.mse_loss(v_pred, v_target)  # (,)
         return loss
 
     @torch.inference_mode()

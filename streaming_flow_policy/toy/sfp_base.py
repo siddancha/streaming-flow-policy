@@ -161,7 +161,7 @@ class StreamingFlowPolicyBase (ABC):
         return log_pdf  # (*BS)
 
     @abstractmethod
-    def u_conditional(self, traj: Trajectory, x: Tensor, t: Tensor) -> Tensor:
+    def v_conditional(self, traj: Trajectory, x: Tensor, t: Tensor) -> Tensor:
         """
         Compute the conditional velocity field for a given trajectory.
 
@@ -175,7 +175,7 @@ class StreamingFlowPolicyBase (ABC):
         """
         raise NotImplementedError
 
-    def u_marginal(self, x: Tensor, t: Tensor) -> Tensor:
+    def v_marginal(self, x: Tensor, t: Tensor) -> Tensor:
         """
         Args:
             x (Tensor, dtype=double, shape=(*BS, D)): State values.
@@ -185,7 +185,7 @@ class StreamingFlowPolicyBase (ABC):
             (Tensor, dtype=double, shape=(D,)): Marginal velocities.
         """
         log_likelihoods = torch.stack([self.log_pdf_conditional(traj, x, t) for traj in self.trajectories], dim=-1)  # (*BS, K)
-        velocities = torch.stack([self.u_conditional(traj, x, t) for traj in self.trajectories], dim=-2)  # (*BS, K, D)
+        velocities = torch.stack([self.v_conditional(traj, x, t) for traj in self.trajectories], dim=-2)  # (*BS, K, D)
 
         log_posterior = self.π.log() + log_likelihoods  # (*BS, K)
         log_partition_fn = log_posterior.logsumexp(dim=-1, keepdim=True)  # (*BS, 1)
@@ -212,8 +212,8 @@ class StreamingFlowPolicyBase (ABC):
         Δt = 1.0 / num_steps
         multi_traj = [x]
         for t in breaks[:-1]:
-            u = self.u_marginal(x, torch.ones([L]) * t)  # (L, D)
-            x = x + Δt * u  # (L, D)
+            v = self.v_marginal(x, torch.ones([L]) * t)  # (L, D)
+            x = x + Δt * v  # (L, D)
             multi_traj.append(x)
         multi_traj = torch.stack(multi_traj, dim=-2)  # (L, N+1, D)
         multi_traj = multi_traj.numpy()  # (L, N+1, D)
