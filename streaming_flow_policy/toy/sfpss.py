@@ -180,9 +180,12 @@ class StreamingFlowPolicyStochasticStabilizing (StreamingFlowPolicyBase):
             • First, given q(t) and z(t), we want to compute q₀ and z₀.
                 • z₀ = (z(t) - tξ(t)) / (1 - (1-σ₁)t)
                 • q₀ = ξ(0) + (q(t) - ξ(t)) exp(kt) - σᵣtz₀
-            • Then, we compute the velocity field for the conditional flow.
+            • Then, we compute the velocity for the conditional flow.
                 • vq(q, z, t) = ξ̇(t) -k(q₀ - ξ(0) + σᵣtz₀)exp(-kt) + σᵣz₀exp(-kt)
                 • vz(q, z, t) = ξ(t) + tξ̇(t) - (1-σ₁)z₀
+            • Plugging (z₀, q₀) into the velocity gives us the velocity field:
+                • vq(q, z, t) = ξ̇(t) - k(q - ξ(t)) + σᵣexp(-kt) / (1 - (1-σ₁)t) * (z - tξ(t))
+                • vz(q, z, t) = ξ(t) + tξ̇(t) - (1-σ₁) / (1 - (1-σ₁)t) * (z - tξ(t))
 
         Args:
             traj (Trajectory): Demonstration trajectory.
@@ -198,17 +201,14 @@ class StreamingFlowPolicyStochasticStabilizing (StreamingFlowPolicyBase):
         ξ̇t = self.ξ̇t(traj, t)  # (*BS, 1)
         t = t.unsqueeze(-1)  # (*BS, 1)
         αt = torch.exp(-self.k * t)  # (*BS, 1)
-        βt = torch.exp( self.k * t)  # (*BS, 1)
-        ξ0 = traj.value(0).item()
         σ1 = self.σ1
         σr = self.σr
 
-        # Invert the flow and transform (qt, zt) to (q0, z0)
+        # Invert zt to get z0
         z0 = (zt - t * ξt) / (1 - (1 - σ1) * t)  # (*BS, 1)
-        q0 = ξ0 + (qt - ξt) * βt - σr * t * z0
 
-        # Compute velocity of the trajectory starting from (q0, z0) at t
-        vq = ξ̇t - self.k * (q0 - ξ0 + σr * t * z0) * αt + σr * z0 * αt  # (*BS, 1)
+        # Compute velocity field
+        vq = ξ̇t - self.k * (qt - ξt) + σr * z0 * αt  # (*BS, 1)
         vz = ξt + t * ξ̇t - (1 - σ1) * z0  # (*BS, 1)
 
         return torch.cat([vq, vz], dim=-1)  # (*BS, 2)
