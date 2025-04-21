@@ -4,10 +4,10 @@ import matplotlib.pyplot as plt
 import torch; torch.set_default_dtype(torch.double)
 from torch import Tensor
 
-from streaming_flow_policy.toy.sfps import StreamingFlowPolicyStochastic
+from streaming_flow_policy.toy.sfpl import StreamingFlowPolicyLatent
 
 def plot_probability_density_q(
-        fp: StreamingFlowPolicyStochastic,
+        fp: StreamingFlowPolicyLatent,
         ts: Tensor,
         xs: Tensor,
         ax: plt.Axes,
@@ -16,7 +16,7 @@ def plot_probability_density_q(
     ):
     """
     Args:
-        fp (StreamingFlowPolicyStochastic): Flow policy.
+        fp (StreamingFlowPolicyLatent): Flow policy.
         ts (Tensor, dtype=float, shape=(T, X)): Time values in [0,1].
         xs (Tensor, dtype=float, shape=(T, X)): Configuration values.
         ax (plt.Axes): Axes to plot on.
@@ -36,7 +36,7 @@ def plot_probability_density_q(
     return ax.imshow(p, origin='lower', extent=extent, aspect='auto', alpha=alpha)
 
 def plot_probability_density_z(
-        fp: StreamingFlowPolicyStochastic,
+        fp: StreamingFlowPolicyLatent,
         ts: Tensor,
         xs: Tensor,
         ax: plt.Axes,
@@ -45,7 +45,7 @@ def plot_probability_density_z(
     ):
     """
     Args:
-        fp (StreamingFlowPolicyStochastic): Flow policy.
+        fp (StreamingFlowPolicyLatent): Flow policy.
         ts (Tensor, dtype=float, shape=(T, X)): Time values in [0,1].
         xs (Tensor, dtype=float, shape=(T, X)): Configuration values.
         ax (plt.Axes): Axes to plot on.
@@ -64,9 +64,49 @@ def plot_probability_density_z(
     extent = [xs.min(), xs.max(), ts.min(), ts.max()]
     return ax.imshow(p, origin='lower', extent=extent, aspect='auto', alpha=alpha)
 
+def plot_probability_density_and_streamlines_q(
+        fp: StreamingFlowPolicyLatent,
+        ax: plt.Axes,
+        num_points: int=400,
+    ):
+    """
+    Example of how to call the function:
+
+    fig, ax = plt.subplots(figsize=(6, 4), dpi=300)
+    im = plot_probability_density_and_streamlines_q(fp, ax)
+    plt.colorbar(im, ax=ax, label='Probability Density')
+    plt.show()
+    """
+    ts = torch.linspace(0, 1, num_points, dtype=torch.double)  # (T,)
+    qs = torch.linspace(-1, 1, num_points, dtype=torch.double)  # (X,)
+    ts, qs = torch.meshgrid(ts, qs, indexing='ij')  # (T, X)
+
+    # Plot log probability
+    heatmap = plot_probability_density_q(fp, ts, qs, ax)
+
+    # Compute the expected velocity field of q over z.
+    𝔼v = fp.𝔼vq_marginal(qs.unsqueeze(-1), ts)  # (T, X, 1)
+    𝔼v = 𝔼v.squeeze(-1)  # (T, X)
+
+    # Plot streamlines
+    ax.streamplot(
+        x=qs[0].numpy(),
+        y=ts[:, 0].numpy(),
+        u=𝔼v.numpy(),
+        v=np.ones(𝔼v.shape), 
+        color='white', density=1, linewidth=0.5, arrowsize=0.75
+    )
+
+    ax.set_xlim(-1, 1)
+    ax.set_ylim(0, 1)
+    ax.set_title('Probability Density and Flow')
+
+    ax.tick_params(axis='both', which='both', length=0, labelbottom=False, labelleft=False)
+
+    return heatmap
 
 def plot_probability_density_with_trajectories(
-        fp: StreamingFlowPolicyStochastic,
+        fp: StreamingFlowPolicyLatent,
         ax1: plt.Axes,
         ax2: plt.Axes,
         q_starts: List[float | None],

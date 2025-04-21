@@ -10,7 +10,7 @@ from pydrake.all import Trajectory
 from streaming_flow_policy.toy.sfp_base import StreamingFlowPolicyBase
 
 
-class StreamingFlowPolicyStochasticStabilizing (StreamingFlowPolicyBase):
+class StreamingFlowPolicyLatent (StreamingFlowPolicyBase):
     def __init__(
         self,
         trajectories: List[Trajectory],
