@@ -19,17 +19,17 @@ class StreamingFlowPolicyDeterministic (StreamingFlowPolicyBase):
         """
         Flow policy with stabilizing conditional flow.
 
-        Let q̃(t) be the demonstration trajectory. And its velocity be ṽ(t).
+        Let ξ(t) be the demonstration trajectory. And its velocity be ξ̇(t).
 
         Conditional flow:
         • At time t=0, we sample:
-            • q₀ ~ N(q̃(0), σ₀)
+            • q₀ ~ N(ξ(0), σ₀)
 
         • Conditional velocity field at (x, t) is:
-            • u(x, t) = -k(q(t) - q̃(t)) + ṽ(t)
+            • u(x, t) = -k(q(t) - ξ(t)) + ξ̇(t)
 
         • Flow trajectory at time t:
-            • q(t) - q̃(t) = (q₀ - q̃(0)) exp(-kt)
+            • q(t) - ξ(t) = (q₀ - ξ(0)) exp(-kt)
               • The error from the trajectory decreases exponentially with time.
 
         Args:
@@ -59,13 +59,13 @@ class StreamingFlowPolicyDeterministic (StreamingFlowPolicyBase):
             A (Tensor, dtype=double, shape=(*BS, 1, 1)): Transition matrix.
             b (Tensor, dtype=double, shape=(*BS, 1)): Bias vector.
         """
-        q̃0: float = traj.value(0).item()
-        q̃t = self.q̃t(traj, t)[..., 0]  # (*BS)
+        ξ0: float = traj.value(0).item()
+        ξt = self.ξt(traj, t)[..., 0]  # (*BS)
         k = self.k
 
         exp_neg_kt = torch.exp(-k * t)  # (*BS)
         A = self.matrix_stack([[exp_neg_kt]])  # (*BS, 1, 1)
-        b = (q̃t - q̃0 * exp_neg_kt).unsqueeze(-1)  # (*BS, 1)
+        b = (ξt - ξ0 * exp_neg_kt).unsqueeze(-1)  # (*BS, 1)
         return A, b
 
     def μΣ0(self, traj: Trajectory) -> Tuple[Tensor, Tensor]:
@@ -76,9 +76,9 @@ class StreamingFlowPolicyDeterministic (StreamingFlowPolicyBase):
             Tensor, dtype=double, shape=(1,): Mean at time t=0.
             Tensor, dtype=double, shape=(1, 1): Covariance matrix at time t=0.
         """
-        q̃0: float = traj.value(0).item()
+        ξ0: float = traj.value(0).item()
         σ0 = self.σ0
-        μ0 = torch.tensor([q̃0], dtype=torch.double)  # (1,)
+        μ0 = torch.tensor([ξ0], dtype=torch.double)  # (1,)
         Σ0 = torch.tensor([[np.square(σ0)]], dtype=torch.double)  # (1, 1)
         return μ0, Σ0
 
@@ -87,10 +87,10 @@ class StreamingFlowPolicyDeterministic (StreamingFlowPolicyBase):
         Compute the conditional velocity field for a given trajectory.
 
         • Conditional velocity field at (x, t) is:
-            • u(x, t) = -k(q(t) - q̃(t)) + ṽ(t)
+            • u(x, t) = -k(q(t) - ξ(t)) + ξ̇(t)
 
         • Flow trajectory at time t:
-            • q(t) - q̃(t) = (q₀ - q̃(0)) exp(-kt)
+            • q(t) - ξ(t) = (q₀ - ξ(0)) exp(-kt)
 
         Args:
             traj (Trajectory): Demonstration trajectory.
@@ -101,9 +101,9 @@ class StreamingFlowPolicyDeterministic (StreamingFlowPolicyBase):
             (Tensor, dtype=double, shape=(*BS, 1)): Velocity of conditional flow.
         """
         qt = x  # (*BS, 1)
-        q̃t = self.q̃t(traj, t)  # (*BS, 1)
-        ṽt = self.ṽt(traj, t)  # (*BS, 1)
+        ξt = self.ξt(traj, t)  # (*BS, 1)
+        ξ̇t = self.ξ̇t(traj, t)  # (*BS, 1)
         k = self.k
 
-        u = -k * (qt - q̃t) + ṽt  # (*BS, 1)
+        u = -k * (qt - ξt) + ξ̇t  # (*BS, 1)
         return u

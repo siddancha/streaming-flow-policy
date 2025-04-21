@@ -26,7 +26,7 @@ class StreamingFlowPolicyBase (ABC):
         self.π = torch.tensor(prior, dtype=torch.double)  # (K,)
 
     @staticmethod
-    def q̃t(traj: Trajectory, t: Tensor) -> Tensor:
+    def ξt(traj: Trajectory, t: Tensor) -> Tensor:
         """
         Args:
             traj (Trajectory): Demonstration trajectory.
@@ -36,13 +36,13 @@ class StreamingFlowPolicyBase (ABC):
             Tensor, dtype=double, shape=(*BS, D): Configuration values at time t.
         """
         BS = t.shape
-        q̃t = traj.vector_values(t.ravel().numpy())  # (D, *BS)
-        q̃t = torch.tensor(q̃t, dtype=torch.double).reshape(-1, *BS)  # (D, *BS)
-        q̃t = q̃t.movedim(0, -1)  # (*BS, D)
-        return q̃t
+        ξt = traj.vector_values(t.ravel().numpy())  # (D, *BS)
+        ξt = torch.tensor(ξt, dtype=torch.double).reshape(-1, *BS)  # (D, *BS)
+        ξt = ξt.movedim(0, -1)  # (*BS, D)
+        return ξt
 
     @staticmethod
-    def ṽt(traj: Trajectory, t: Tensor) -> Tensor:
+    def ξ̇t(traj: Trajectory, t: Tensor) -> Tensor:
         """
         Args:
             traj (Trajectory): Demonstration trajectory.
@@ -52,11 +52,11 @@ class StreamingFlowPolicyBase (ABC):
             Tensor, dtype=double, shape=(*BS, D): Velocity at time t.
         """
         BS = t.shape
-        traj_ṽ = traj.MakeDerivative()
-        ṽt = traj_ṽ.vector_values(t.ravel().numpy())  # (D, *BS)
-        ṽt = torch.tensor(ṽt, dtype=torch.double).reshape(-1, *BS)  # (D, *BS)
-        ṽt = ṽt.movedim(0, -1)  # (*BS, D)
-        return ṽt
+        traj_ξ̇ = traj.MakeDerivative()
+        ξ̇t = traj_ξ̇.vector_values(t.ravel().numpy())  # (D, *BS)
+        ξ̇t = torch.tensor(ξ̇t, dtype=torch.double).reshape(-1, *BS)  # (D, *BS)
+        ξ̇t = ξ̇t.movedim(0, -1)  # (*BS, D)
+        return ξ̇t
 
     @staticmethod
     def matrix_stack(grid: List[List[Tensor]]) -> Tensor:

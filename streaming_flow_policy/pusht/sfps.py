@@ -22,19 +22,19 @@ class StreamingFlowPolicyStochastic (Policy):
         """
         Conditional flow:
         • At time t=0, we sample:
-            • q₀ ~ N(q̃(0), σ₀)
+            • q₀ ~ N(ξ(0), σ₀)
             • z₀ ~ N(0, 1)
 
         • Flow trajectory at time t:
-            • q(t) = q₀ + (q̃(t) - q̃(0)) + (σᵣt) z₀
-            • z(t) = (1 - (1-σ₁)t)z₀ + tq̃(t)
+            • q(t) = q₀ + (ξ(t) - ξ(0)) + (σᵣt) z₀
+            • z(t) = (1 - (1-σ₁)t)z₀ + tξ(t)
               • z starts from a pure noise sample z₀ that drifts towards the
               trajectory. Therefore, z(t) is uncorrelated with q at t=0, but
               eventually becomes very informative of the trajectory.
 
         • Conditional velocity field:
-            • uq(q, z, t) = ṽ(t) + σᵣz₀
-            • uz(q, z, t) = q̃(t) + tṽ(t) - (1-σ₁)z₀
+            • uq(q, z, t) = ξ̇(t) + σᵣz₀
+            • uz(q, z, t) = ξ(t) + tξ̇(t) - (1-σ₁)z₀
 
         Args:
             velocity_net (nn.Module): velocity network
@@ -99,8 +99,8 @@ class StreamingFlowPolicyStochastic (Policy):
         )
 
         time = np.float32(np.random.rand())  # (,)
-        q̃t = traj.value(time).T  # (1, ACTION_DIM)
-        ṽt = traj.EvalDerivative(time).T  # (1, ACTION_DIM)
+        ξt = traj.value(time).T  # (1, ACTION_DIM)
+        ξ̇t = traj.EvalDerivative(time).T  # (1, ACTION_DIM)
         σ0 = self.σ0.item()
         σ1 = self.σ1.item()
         σr = self.σr.item()
@@ -110,14 +110,14 @@ class StreamingFlowPolicyStochastic (Policy):
 
         # Sample qt
         ε_q0 =  σ0 * np.random.randn(1, ACTION_DIM)  # (1, ACTION_DIM)
-        qt = q̃t + ε_q0 + σr * time * z0  # (1, ACTION_DIM)
+        qt = ξt + ε_q0 + σr * time * z0  # (1, ACTION_DIM)
 
         # Sample zt
-        zt = (1 - (1-σ1) * time) * z0 + time * q̃t
+        zt = (1 - (1-σ1) * time) * z0 + time * ξt
 
         # Compute conditional flow
-        uq = ṽt + σr * z0  # (1, ACTION_DIM)
-        uz = q̃t + time * ṽt - (1 - σ1) * z0  # (1, ACTION_DIM)
+        uq = ξ̇t + σr * z0  # (1, ACTION_DIM)
+        uz = ξt + time * ξ̇t - (1 - σ1) * z0  # (1, ACTION_DIM)
 
         return {
             'obs': obs,  # (OBS_HORIZON, OBS_DIM)

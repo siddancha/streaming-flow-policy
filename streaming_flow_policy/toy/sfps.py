@@ -23,17 +23,17 @@ class StreamingFlowPolicyStochastic (StreamingFlowPolicyBase):
         the original trajectory and z is a noise variable that starts from
         N(0, 1).
 
-        Let q̃(t) be the demonstration trajectory.
+        Let ξ(t) be the demonstration trajectory.
         Define constant σᵣ = √(σ₁² - σ₀²). Note that σ₁² = σ₀² + σᵣ².
 
         Conditional flow:
         • At time t=0, we sample:
-            • q₀ ~ N(q̃(0), σ₀)
+            • q₀ ~ N(ξ(0), σ₀)
             • z₀ ~ N(0, 1)
 
         • Flow trajectory at time t:
-            • q(t) = q₀ + (q̃(t) - q̃(0)) + (σᵣt) z₀
-            • z(t) = (1 - (1-σ₁)t)z₀ + tq̃(t)
+            • q(t) = q₀ + (ξ(t) - ξ(0)) + (σᵣt) z₀
+            • z(t) = (1 - (1-σ₁)t)z₀ + tξ(t)
               • z starts from a pure noise sample z₀ that drifts towards the
               trajectory. Therefore, z(t) is uncorrelated with q at t=0, but
               eventually becomes very informative of the trajectory.
@@ -60,12 +60,12 @@ class StreamingFlowPolicyStochastic (StreamingFlowPolicyBase):
             A (Tensor, dtype=double, shape=(*BS, 2, 2)): Transition matrix.
             b (Tensor, dtype=double, shape=(*BS, 2)): Bias vector.
         """
-        q̃0: float = traj.value(0).item()
-        q̃t = self.q̃t(traj, t)[..., 0]  # (*BS)
+        ξ0: float = traj.value(0).item()
+        ξt = self.ξt(traj, t)[..., 0]  # (*BS)
         σ1 = self.σ1  # (,)
         σr = self.σr  # (,)
 
-        b = torch.stack([q̃t - q̃0, t * q̃t], dim=-1)  # (*BS, 2)
+        b = torch.stack([ξt - ξ0, t * ξt], dim=-1)  # (*BS, 2)
         A = self.matrix_stack([
             [1,           σr * t],
             [0, 1 - (1 - σ1) * t],
@@ -80,9 +80,9 @@ class StreamingFlowPolicyStochastic (StreamingFlowPolicyBase):
             Tensor, dtype=double, shape=(*BS, 2): Mean at time t=0.
             Tensor, dtype=double, shape=(*BS, 2, 2): Covariance matrix at time t=0.
         """
-        q̃0 = traj.value(0).item()
+        ξ0 = traj.value(0).item()
         σ0 = self.σ0
-        μ0 = torch.tensor([q̃0, 0], dtype=torch.double)  # (2,)
+        μ0 = torch.tensor([ξ0, 0], dtype=torch.double)  # (2,)
         Σ0 = torch.tensor([[np.square(σ0), 0], [0, 1]], dtype=torch.double)  # (2, 2)
         return μ0, Σ0
 
@@ -166,16 +166,16 @@ class StreamingFlowPolicyStochastic (StreamingFlowPolicyBase):
         Compute the conditional velocity field for a given trajectory.
 
         • Flow trajectory at time t:
-            • q(t) = q₀ + (q̃(t) - q̃(0)) + (σᵣt) z₀
-            • z(t) = (1 - (1-σ₁)t)z₀ + tq̃(t)
+            • q(t) = q₀ + (ξ(t) - ξ(0)) + (σᵣt) z₀
+            • z(t) = (1 - (1-σ₁)t)z₀ + tξ(t)
 
         • Conditional velocity field:
             • First, given q(t) and z(t), we want to compute q₀ and z₀.
-                • z₀ = (z(t) - tq̃(t)) / (1 - (1-σ₁)t)
-                • q₀ = q(t) - (q̃(t) - q̃(0)) - (σᵣt) z₀
+                • z₀ = (z(t) - tξ(t)) / (1 - (1-σ₁)t)
+                • q₀ = q(t) - (ξ(t) - ξ(0)) - (σᵣt) z₀
             • Then, we compute the velocity field for the conditional flow.
-                • uq(q, z, t) = ṽ(t) + σᵣz₀
-                • uz(q, z, t) = q̃(t) + tṽ(t) - (1-σ₁)z₀
+                • uq(q, z, t) = ξ̇(t) + σᵣz₀
+                • uz(q, z, t) = ξ(t) + tξ̇(t) - (1-σ₁)z₀
 
         Args:
             traj (Trajectory): Demonstration trajectory.
@@ -186,17 +186,17 @@ class StreamingFlowPolicyStochastic (StreamingFlowPolicyBase):
             (Tensor, dtype=double, shape=(*BS, 2)): Velocity of conditional flow.
         """
         zt = x[..., 1:2]  # (*BS, 1)
-        q̃t = self.q̃t(traj, t)  # (*BS, 1)
-        ṽt = self.ṽt(traj, t)  # (*BS, 1)
+        ξt = self.ξt(traj, t)  # (*BS, 1)
+        ξ̇t = self.ξ̇t(traj, t)  # (*BS, 1)
         t = t.unsqueeze(-1)  # (*BS, 1)
         σ1 = self.σ1
         σr = self.σr
 
         # Invert the flow and transform (qt, zt) to (q0, z0)
-        z0 = (zt - t * q̃t) / (1 - (1 - σ1) * t)  # (*BS, 1)
+        z0 = (zt - t * ξt) / (1 - (1 - σ1) * t)  # (*BS, 1)
 
         # Compute velocity of the trajectory starting from (q0, z0) at t
-        uq = ṽt + σr * z0  # (*BS, 1)
-        uv = q̃t + t * ṽt - (1 - σ1) * z0  # (*BS, 1)
+        uq = ξ̇t + σr * z0  # (*BS, 1)
+        uv = ξt + t * ξ̇t - (1 - σ1) * z0  # (*BS, 1)
 
         return torch.cat([uq, uv], dim=-1)  # (*BS, 2)
