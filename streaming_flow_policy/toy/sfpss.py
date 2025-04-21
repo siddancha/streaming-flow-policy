@@ -53,8 +53,9 @@ class StreamingFlowPolicyStochasticStabilizing (StreamingFlowPolicyBase):
         self.σ0 = σ0
         self.σ1 = σ1
         self.k = k
-        # Residual standard deviation: √(σ₁² - σ₀²)
-        self.σr = np.sqrt(np.square(σ1) * np.exp(2 * self.k) - np.square(σ0))
+
+        # Residual standard deviation: √(σ₁²exp(2k) - σ₀²)
+        self.σr = np.sqrt(np.square(σ1) * np.exp(2 * k) - np.square(σ0))
 
     def Ab(self, traj: Trajectory, t: Tensor) -> Tuple[Tensor, Tensor]:
         """
@@ -66,11 +67,13 @@ class StreamingFlowPolicyStochasticStabilizing (StreamingFlowPolicyBase):
             A (Tensor, dtype=double, shape=(*BS, 2, 2)): Transition matrix.
             b (Tensor, dtype=double, shape=(*BS, 2)): Bias vector.
         """
-        ξ0: float = traj.value(0).item()
-        ξt = self.ξt(traj, t)[..., 0]  # (*BS)
-        αt = torch.exp(-self.k * t)  # (*BS)
         σ1 = self.σ1  # (,)
         σr = self.σr  # (,)
+        k = self.k  # (,)
+
+        ξ0: float = traj.value(0).item()
+        ξt = self.ξt(traj, t)[..., 0]  # (*BS)
+        αt = torch.exp(-k * t)  # (*BS)
 
         b = torch.stack([ξt - ξ0 * αt, t * ξt], dim=-1)  # (*BS, 2)
         A = self.matrix_stack([
@@ -195,20 +198,22 @@ class StreamingFlowPolicyStochasticStabilizing (StreamingFlowPolicyBase):
         Returns:
             (Tensor, dtype=double, shape=(*BS, 2)): Velocity of conditional flow.
         """
+        σ1 = self.σ1
+        σr = self.σr
+        k = self.k
+
         qt = x[..., 0:1]  # (*BS, 1)
         zt = x[..., 1:2]  # (*BS, 1)
         ξt = self.ξt(traj, t)  # (*BS, 1)
         ξ̇t = self.ξ̇t(traj, t)  # (*BS, 1)
         t = t.unsqueeze(-1)  # (*BS, 1)
-        αt = torch.exp(-self.k * t)  # (*BS, 1)
-        σ1 = self.σ1
-        σr = self.σr
+        αt = torch.exp(-k * t)  # (*BS, 1)
 
         # Invert zt to get z0
         z0 = (zt - t * ξt) / (1 - (1 - σ1) * t)  # (*BS, 1)
 
         # Compute velocity field
-        vq = ξ̇t - self.k * (qt - ξt) + σr * z0 * αt  # (*BS, 1)
+        vq = ξ̇t - k * (qt - ξt) + σr * z0 * αt  # (*BS, 1)
         vz = ξt + t * ξ̇t - (1 - σ1) * z0  # (*BS, 1)
 
         return torch.cat([vq, vz], dim=-1)  # (*BS, 2)
