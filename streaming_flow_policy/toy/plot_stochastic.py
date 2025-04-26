@@ -4,10 +4,10 @@ import matplotlib.pyplot as plt
 import torch; torch.set_default_dtype(torch.double)
 from torch import Tensor
 
-from streaming_flow_policy.toy.sfpl_v1 import StreamingFlowPolicyLatentV1
+from streaming_flow_policy.toy.sfpl_base import StreamingFlowPolicyLatentBase
 
 def plot_probability_density_q(
-        fp: StreamingFlowPolicyLatentV1,
+        fp: StreamingFlowPolicyLatentBase,
         ts: Tensor,
         xs: Tensor,
         ax: plt.Axes,
@@ -36,7 +36,7 @@ def plot_probability_density_q(
     return ax.imshow(p, origin='lower', extent=extent, aspect='auto', alpha=alpha)
 
 def plot_probability_density_z(
-        fp: StreamingFlowPolicyLatentV1,
+        fp: StreamingFlowPolicyLatentBase,
         ts: Tensor,
         xs: Tensor,
         ax: plt.Axes,
@@ -65,7 +65,7 @@ def plot_probability_density_z(
     return ax.imshow(p, origin='lower', extent=extent, aspect='auto', alpha=alpha)
 
 def plot_probability_density_and_streamlines_q(
-        fp: StreamingFlowPolicyLatentV1,
+        fp: StreamingFlowPolicyLatentBase,
         ax: plt.Axes,
         num_points: int=400,
     ):
@@ -106,7 +106,7 @@ def plot_probability_density_and_streamlines_q(
     return heatmap
 
 def plot_probability_density_and_streamlines_z(
-        fp: StreamingFlowPolicyLatentV1,
+        fp: StreamingFlowPolicyLatentBase,
         ax: plt.Axes,
         num_points: int=400,
     ):
@@ -147,7 +147,7 @@ def plot_probability_density_and_streamlines_z(
     return heatmap
 
 def plot_probability_density_with_trajectories(
-        fp: StreamingFlowPolicyLatentV1,
+        fp: StreamingFlowPolicyLatentBase,
         ax1: plt.Axes,
         ax2: plt.Axes,
         q_starts: List[float | None],
