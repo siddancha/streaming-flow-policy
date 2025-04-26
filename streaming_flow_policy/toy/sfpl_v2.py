@@ -47,10 +47,9 @@ class StreamingFlowPolicyLatentV2 (StreamingFlowPolicyLatentBase):
             σ0 (float): Standard deviation of the Gaussian tube at time t=0.
             σ1 (float): Standard deviation of the Gaussian tube at time t=1.
         """
-        super().__init__(dim=2, trajectories=trajectories, prior=prior)
+        super().__init__(trajectories=trajectories, prior=prior, σ0=σ0)
 
         assert 0 <= σ0 <= σ1, "σ0 must be less than or equal to σ1"
-        self.σ0 = σ0
         self.σ1 = σ1
         self.k = k
 
