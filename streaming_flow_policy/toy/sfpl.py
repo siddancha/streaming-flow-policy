@@ -49,11 +49,11 @@ class StreamingFlowPolicyLatent (StreamingFlowPolicyLatentBase):
         """
         super().__init__(trajectories=trajectories, prior=prior, σ0=σ0)
 
-        assert 0 <= σ0 <= σ1, "σ0 must be less than or equal to σ1"
         self.σ1 = σ1
         self.k = k
 
         # Residual standard deviation: √(σ₁² - σ₀²exp(-2k))
+        assert 0 <= σ0 * np.exp(-k) <= σ1, "σ1 is too small relative to σ0"
         self.σr = np.sqrt(np.square(σ1) - np.square(σ0) * np.exp(-2 * k))
 
     def Ab(self, traj: Trajectory, t: Tensor) -> Tuple[Tensor, Tensor]:
