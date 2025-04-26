@@ -62,22 +62,32 @@ class StreamingFlowPolicyLatentBad (StreamingFlowPolicyLatentBase):
             t (Tensor, dtype=double, shape=(*BS)): Time value in [0,1].
 
         Returns:
-            A (Tensor, dtype=double, shape=(*BS, 2, 2)): Transition matrix.
-            b (Tensor, dtype=double, shape=(*BS, 2)): Bias vector.
+            A (Tensor, dtype=double, shape=(*BS, 2D, 2D)): Transition matrix.
+            b (Tensor, dtype=double, shape=(*BS, 2D)): Bias vector.
         """
+        I = torch.eye(self.D)  # (D, D)
+        O = torch.zeros(self.D, self.D)  # (D, D)
+
         σ1 = self.σ1  # (,)
         σr = self.σr  # (,)
         k = self.k  # (,)
 
-        ξ0: float = traj.value(0).item()
-        ξt = self.ξt(traj, t)[..., 0]  # (*BS)
+        ξ0 = torch.tensor(traj.value(0)).ravel()  # (D,)
+        ξt = self.ξt(traj, t)  # (*BS, D)
         αt = torch.exp(-k * t)  # (*BS)
 
-        b = torch.stack([ξt - ξ0 * αt, t * ξt], dim=-1)  # (*BS, 2)
-        A = self.matrix_stack([
-            [αt,     σr * t * αt],
-            [0, 1 - (1 - σ1) * t],
-        ])  # (*BS, 2, 2)
+        # Compute b
+        t = t.unsqueeze(-1)  # (*BS, 1)
+        αt = αt.unsqueeze(-1)  # (*BS, 1)
+        b = torch.cat([ξt - ξ0 * αt, t * ξt], dim=-1)  # (*BS, D)
+        
+        # Compute A
+        t = t.unsqueeze(-1) * I  # (*BS, D, D)
+        αt = αt.unsqueeze(-1) * I  # (*BS, D, D)
+        A = self.block_matrix([
+            [αt,      σr * t * αt],
+            [ O, 1 - (1 - σ1) * t],
+        ])  # (*BS, 2D, 2D)
         return A, b
 
     def v_conditional(self, traj: Trajectory, x: Tensor, t: Tensor) -> Tensor:
@@ -101,31 +111,31 @@ class StreamingFlowPolicyLatentBad (StreamingFlowPolicyLatentBase):
 
         Args:
             traj (Trajectory): Demonstration trajectory.
-            x (Tensor, dtype=double, shape=(*BS, 2)): State values.
+            x (Tensor, dtype=double, shape=(*BS, 2D)): State values.
             t (Tensor, dtype=double, shape=(*BS)): Time value in [0,1].
             
         Returns:
-            (Tensor, dtype=double, shape=(*BS, 2)): Velocity of conditional flow.
+            (Tensor, dtype=double, shape=(*BS, 2D)): Velocity of conditional flow.
         """
         σ1 = self.σ1
         σr = self.σr
         k = self.k
 
-        qt = x[..., 0:1]  # (*BS, 1)
-        zt = x[..., 1:2]  # (*BS, 1)
-        ξt = self.ξt(traj, t)  # (*BS, 1)
-        ξ̇t = self.ξ̇t(traj, t)  # (*BS, 1)
+        qt = x[..., self.slice_q]  # (*BS, D)
+        zt = x[..., self.slice_z]  # (*BS, D)
+        ξt = self.ξt(traj, t)  # (*BS, D)
+        ξ̇t = self.ξ̇t(traj, t)  # (*BS, D)
         t = t.unsqueeze(-1)  # (*BS, 1)
         αt = torch.exp(-k * t)  # (*BS, 1)
 
         # Invert zt to get z0
-        z0 = (zt - t * ξt) / (1 - (1 - σ1) * t)  # (*BS, 1)
+        z0 = (zt - t * ξt) / (1 - (1 - σ1) * t)  # (*BS, D)
 
         # Compute velocity field
-        vq = ξ̇t - k * (qt - ξt) + σr * z0 * αt  # (*BS, 1)
-        vz = ξt + t * ξ̇t - (1 - σ1) * z0  # (*BS, 1)
+        vq = ξ̇t - k * (qt - ξt) + σr * z0 * αt  # (*BS, D)
+        vz = ξt + t * ξ̇t - (1 - σ1) * z0  # (*BS, D)
 
-        return torch.cat([vq, vz], dim=-1)  # (*BS, 2)
+        return torch.cat([vq, vz], dim=-1)  # (*BS, 2D)
 
     def 𝔼vq_conditional(self, traj: Trajectory, q: Tensor, t: Tensor) -> Tensor:
         """
@@ -139,30 +149,30 @@ class StreamingFlowPolicyLatentBad (StreamingFlowPolicyLatentBase):
 
         Args:
             traj (Trajectory): Demonstration trajectory.
-            q (Tensor, dtype=double, shape=(*BS, 1)): Configuration.
+            q (Tensor, dtype=double, shape=(*BS, D)): Configuration.
             t (Tensor, dtype=double, shape=(*BS)): Time value in [0,1].
 
         Returns:
-            (Tensor, dtype=double, shape=(*BS, 1)):
+            (Tensor, dtype=double, shape=(*BS, D)):
                 expected value of vq over z given q, t and a trajectory.
         """
         σ1 = self.σ1
         σr = self.σr
         k = self.k
 
-        μ_zCq, Σ_zCq = self.μΣt_zCq(traj, t, q)  # (*BS, 1), (*BS, 1, 1)
+        μ_zCq, Σ_zCq = self.μΣt_zCq(traj, t, q)  # (*BS, D), (*BS, D, D)
 
-        ξt = self.ξt(traj, t)  # (*BS, 1)
-        ξ̇t = self.ξ̇t(traj, t)  # (*BS, 1)
+        ξt = self.ξt(traj, t)  # (*BS, D)
+        ξ̇t = self.ξ̇t(traj, t)  # (*BS, D)
         t = t.unsqueeze(-1)  # (*BS, 1)
         αt = torch.exp(-k * t)  # (*BS, 1)
 
         # Expected z0 given q
-        μ_z0Cq = (μ_zCq - t * ξt) / (1 - (1 - σ1) * t)  # (*BS, 1)
+        μ_z0Cq = (μ_zCq - t * ξt) / (1 - (1 - σ1) * t)  # (*BS, D)
 
         # Compute expected velocity field
-        𝔼vq = ξ̇t - k * (q - ξt) + σr * μ_z0Cq * αt  # (*BS, 1)
-        return 𝔼vq  # (*BS, 1)
+        𝔼vq = ξ̇t - k * (q - ξt) + σr * μ_z0Cq * αt  # (*BS, D)
+        return 𝔼vq
 
     def 𝔼vz_conditional(self, traj: Trajectory, z: Tensor, t: Tensor) -> Tensor:
         """
@@ -179,22 +189,22 @@ class StreamingFlowPolicyLatentBad (StreamingFlowPolicyLatentBase):
 
         Args:
             traj (Trajectory): Demonstration trajectory.
-            z (Tensor, dtype=double, shape=(*BS, 1)): Latent variable value.
+            z (Tensor, dtype=double, shape=(*BS, D)): Latent variable value.
             t (Tensor, dtype=double, shape=(*BS)): Time value in [0,1].
 
         Returns:
-            (Tensor, dtype=double, shape=(*BS, 1)):
+            (Tensor, dtype=double, shape=(*BS, D)):
                 expected value of vz given z, t and a trajectory.
         """
         σ1 = self.σ1
 
-        ξt = self.ξt(traj, t)  # (*BS, 1)
-        ξ̇t = self.ξ̇t(traj, t)  # (*BS, 1)
+        ξt = self.ξt(traj, t)  # (*BS, D)
+        ξ̇t = self.ξ̇t(traj, t)  # (*BS, D)
         t = t.unsqueeze(-1)  # (*BS, 1)
 
         # Invert zt to get z0
-        z0 = (z - t * ξt) / (1 - (1 - σ1) * t)  # (*BS, 1)
+        z0 = (z - t * ξt) / (1 - (1 - σ1) * t)  # (*BS, D)
 
         # Compute expected velocity field
-        𝔼vz = ξt + t * ξ̇t - (1 - σ1) * z0  # (*BS, 1)
+        𝔼vz = ξt + t * ξ̇t - (1 - σ1) * z0  # (*BS, D)
         return 𝔼vz

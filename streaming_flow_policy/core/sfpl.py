@@ -170,7 +170,7 @@ class StreamingFlowPolicyLatent (StreamingFlowPolicyLatentBase):
 
         # Compute expected velocity field
         𝔼vq = ξ̇t - k * (q - ξt) + σr * (1 + k * t) * μ_z0Cq  # (*BS, D)
-        return 𝔼vq  # (*BS, D)
+        return 𝔼vq
 
     def 𝔼vz_conditional(self, traj: Trajectory, z: Tensor, t: Tensor) -> Tensor:
         """
