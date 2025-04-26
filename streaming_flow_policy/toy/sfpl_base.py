@@ -32,19 +32,6 @@ class StreamingFlowPolicyLatentBase (StreamingFlowPolicyBase):
         super().__init__(dim=2, trajectories=trajectories, prior=prior)
         self.σ0 = σ0
 
-    @abstractmethod
-    def Ab(self, traj: Trajectory, t: Tensor) -> Tuple[Tensor, Tensor]:
-        """
-        Args:
-            traj (Trajectory): Demonstration trajectory.
-            t (Tensor, dtype=double, shape=(*BS)): Time value in [0,1].
-
-        Returns:
-            A (Tensor, dtype=double, shape=(*BS, 2, 2)): Transition matrix.
-            b (Tensor, dtype=double, shape=(*BS, 2)): Bias vector.
-        """
-        raise NotImplementedError
-
     def μΣ0(self, traj: Trajectory) -> Tuple[Tensor, Tensor]:
         """
         Compute the mean and covariance matrix of the conditional flow at time t=0.
@@ -202,21 +189,6 @@ class StreamingFlowPolicyLatentBase (StreamingFlowPolicyBase):
             list_log_pdf.append(log_pdf_i)
         log_pdf = torch.stack(list_log_pdf, dim=-1)  # (*BS, K)
         return torch.softmax(log_pdf, dim=-1)  # (*BS, K)
-
-    @abstractmethod
-    def v_conditional(self, traj: Trajectory, x: Tensor, t: Tensor) -> Tensor:
-        """
-        Compute the conditional velocity field for a given trajectory.
-
-        Args:
-            traj (Trajectory): Demonstration trajectory.
-            x (Tensor, dtype=double, shape=(*BS, 2)): State values.
-            t (Tensor, dtype=double, shape=(*BS)): Time value in [0,1].
-            
-        Returns:
-            (Tensor, dtype=double, shape=(*BS, 2)): Velocity of conditional flow.
-        """
-        raise NotImplementedError
 
     @abstractmethod
     def 𝔼vq_conditional(self, traj: Trajectory, q: Tensor, t: Tensor) -> Tensor:
