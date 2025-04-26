@@ -122,7 +122,7 @@ class StreamingFlowPolicyLatent (StreamingFlowPolicyBase):
         Σqq_inv = torch.inverse(Σqq)  # (*BS, 1, 1)
 
         # From https://en.wikipedia.org/wiki/Multivariate_normal_distribution#Conditional_distributions
-        μ_zCq = μz + Σzq @ Σqq_inv @ (q - μq)  # (*BS, 1)
+        μ_zCq = μz + (Σzq @ Σqq_inv @ (q - μq).unsqueeze(-1)).squeeze(-1)  # (*BS, 1)
         Σ_zCq = Σzz - Σzq @ Σqq_inv @ Σqz  # (*BS, 1, 1)
 
         return μ_zCq, Σ_zCq

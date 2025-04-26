@@ -78,15 +78,15 @@ def plot_probability_density_and_streamlines_q(
     plt.show()
     """
     ts = torch.linspace(0, 1, num_points, dtype=torch.double)  # (T,)
-    qs = torch.linspace(-1, 1, num_points, dtype=torch.double)  # (X,)
-    ts, qs = torch.meshgrid(ts, qs, indexing='ij')  # (T, X)
+    qs = torch.linspace(-1, 1, num_points, dtype=torch.double)  # (Q,)
+    ts, qs = torch.meshgrid(ts, qs, indexing='ij')  # (T, Q)
 
     # Plot log probability
     heatmap = plot_probability_density_q(fp, ts, qs, ax)
 
     # Compute the expected velocity field of q over z.
-    𝔼v = fp.𝔼vq_marginal(qs.unsqueeze(-1), ts)  # (T, X, 1)
-    𝔼v = 𝔼v.squeeze(-1)  # (T, X)
+    𝔼v = fp.𝔼vq_marginal(qs.unsqueeze(-1), ts)  # (T, Q, 1)
+    𝔼v = 𝔼v.squeeze(-1)  # (T, Q)
 
     # Plot streamlines
     ax.streamplot(
@@ -99,7 +99,48 @@ def plot_probability_density_and_streamlines_q(
 
     ax.set_xlim(-1, 1)
     ax.set_ylim(0, 1)
-    ax.set_title('Probability Density and Flow')
+    ax.set_title('Probability density and flow for configuration q')
+
+    ax.tick_params(axis='both', which='both', length=0, labelbottom=False, labelleft=False)
+
+    return heatmap
+
+def plot_probability_density_and_streamlines_z(
+        fp: StreamingFlowPolicyLatent,
+        ax: plt.Axes,
+        num_points: int=400,
+    ):
+    """
+    Example of how to call the function:
+
+    fig, ax = plt.subplots(figsize=(6, 4), dpi=300)
+    im = plot_probability_density_and_streamlines_q(fp, ax)
+    plt.colorbar(im, ax=ax, label='Probability Density')
+    plt.show()
+    """
+    ts = torch.linspace(0, 1, num_points, dtype=torch.double)  # (T,)
+    zs = torch.linspace(-1, 1, num_points, dtype=torch.double)  # (Z,)
+    ts, zs = torch.meshgrid(ts, zs, indexing='ij')  # (T, Z)
+
+    # Plot log probability
+    heatmap = plot_probability_density_z(fp, ts, zs, ax)
+
+    # Compute the expected velocity field of q over z.
+    𝔼v = fp.𝔼vz_marginal(zs.unsqueeze(-1), ts)  # (T, Z, 1)
+    𝔼v = 𝔼v.squeeze(-1)  # (T, Z)
+
+    # Plot streamlines
+    ax.streamplot(
+        x=zs[0].numpy(),
+        y=ts[:, 0].numpy(),
+        u=𝔼v.numpy(),
+        v=np.ones(𝔼v.shape), 
+        color='white', density=1, linewidth=0.5, arrowsize=0.75
+    )
+
+    ax.set_xlim(-1, 1)
+    ax.set_ylim(0, 1)
+    ax.set_title('Probability density and flow for latent variable z')
 
     ax.tick_params(axis='both', which='both', length=0, labelbottom=False, labelleft=False)
 
