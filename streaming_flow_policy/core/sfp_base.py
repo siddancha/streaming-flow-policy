@@ -1,7 +1,7 @@
 from typing import List, Tuple
 from abc import ABC, abstractmethod
 import numpy as np
-import torch; torch.set_default_dtype(torch.double)
+import torch
 from torch import Tensor
 from torch.distributions import MultivariateNormal
 from pydrake.all import PiecewisePolynomial, Trajectory
