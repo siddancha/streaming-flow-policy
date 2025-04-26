@@ -4,12 +4,12 @@ import matplotlib.pyplot as plt
 import torch; torch.set_default_dtype(torch.double)
 from torch import Tensor
 
-from streaming_flow_policy.toy.sfpl_base import StreamingFlowPolicyLatentBase
+from streaming_flow_policy.core.sfpl_base import StreamingFlowPolicyLatentBase
 
 def plot_probability_density_q(
         fp: StreamingFlowPolicyLatentBase,
         ts: Tensor,
-        xs: Tensor,
+        qs: Tensor,
         ax: plt.Axes,
         normalize: bool=True,
         alpha: float=1,
@@ -18,12 +18,12 @@ def plot_probability_density_q(
     Args:
         fp (StreamingFlowPolicyLatent): Flow policy.
         ts (Tensor, dtype=float, shape=(T, X)): Time values in [0,1].
-        xs (Tensor, dtype=float, shape=(T, X)): Configuration values.
+        qs (Tensor, dtype=float, shape=(T, X)): Configuration values.
         ax (plt.Axes): Axes to plot on.
         normalize (bool): Whether to normalize the probability density.
         alpha (float): Alpha value for the probability density.
     """
-    p = fp.log_pdf_marginal_q(xs.unsqueeze(-1), ts).exp()  # (T, X)
+    p = fp.log_pdf_marginal_q(qs.unsqueeze(-1), ts).exp()  # (T, X)
 
     if normalize:
         p = p / p.max(dim=1, keepdims=True).values  # (T, X)
@@ -32,13 +32,13 @@ def plot_probability_density_q(
     ax.set_ylim(0, 1)
     ax.tick_params(axis='both', which='both', length=0, labelbottom=False, labelleft=False)
 
-    extent = [xs.min(), xs.max(), ts.min(), ts.max()]
+    extent = [qs.min(), qs.max(), ts.min(), ts.max()]
     return ax.imshow(p, origin='lower', extent=extent, aspect='auto', alpha=alpha)
 
 def plot_probability_density_z(
         fp: StreamingFlowPolicyLatentBase,
         ts: Tensor,
-        xs: Tensor,
+        zs: Tensor,
         ax: plt.Axes,
         normalize: bool=True,
         alpha: float=1,
@@ -47,12 +47,12 @@ def plot_probability_density_z(
     Args:
         fp (StreamingFlowPolicyLatent): Flow policy.
         ts (Tensor, dtype=float, shape=(T, X)): Time values in [0,1].
-        xs (Tensor, dtype=float, shape=(T, X)): Configuration values.
+        zs (Tensor, dtype=float, shape=(T, X)): Configuration values.
         ax (plt.Axes): Axes to plot on.
         normalize (bool): Whether to normalize the probability density.
         alpha (float): Alpha value for the probability density.
     """
-    p = fp.log_pdf_marginal_z(xs.unsqueeze(-1), ts).exp()  # (T, X)
+    p = fp.log_pdf_marginal_z(zs.unsqueeze(-1), ts).exp()  # (T, X)
 
     if normalize:
         p = p / p.max(dim=1, keepdims=True).values  # (T, X)
@@ -61,7 +61,7 @@ def plot_probability_density_z(
     ax.set_ylim(0, 1)
     ax.tick_params(axis='both', which='both', length=0, labelbottom=False, labelleft=False)
 
-    extent = [xs.min(), xs.max(), ts.min(), ts.max()]
+    extent = [zs.min(), zs.max(), ts.min(), ts.max()]
     return ax.imshow(p, origin='lower', extent=extent, aspect='auto', alpha=alpha)
 
 def plot_probability_density_and_streamlines_q(
