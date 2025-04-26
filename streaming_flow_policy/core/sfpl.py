@@ -11,6 +11,7 @@ from streaming_flow_policy.core.sfpl_base import StreamingFlowPolicyLatentBase
 class StreamingFlowPolicyLatent (StreamingFlowPolicyLatentBase):
     def __init__(
         self,
+        dim: int,
         trajectories: List[Trajectory],
         prior: List[float],
         σ0: float,
@@ -45,7 +46,7 @@ class StreamingFlowPolicyLatent (StreamingFlowPolicyLatentBase):
             σ0 (float): Standard deviation of the Gaussian tube at time t=0.
             σ1 (float): Standard deviation of the Gaussian tube at time t=1.
         """
-        super().__init__(trajectories=trajectories, prior=prior, σ0=σ0)
+        super().__init__(dim=dim, trajectories=trajectories, prior=prior, σ0=σ0)
 
         self.σ1 = σ1
         self.k = k

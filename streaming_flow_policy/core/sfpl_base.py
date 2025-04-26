@@ -13,6 +13,7 @@ from streaming_flow_policy.core.sfp_base import StreamingFlowPolicyBase
 class StreamingFlowPolicyLatentBase (StreamingFlowPolicyBase):
     def __init__(
         self,
+        dim: int,
         trajectories: List[Trajectory],
         prior: List[float],
         σ0: float,
@@ -28,7 +29,7 @@ class StreamingFlowPolicyLatentBase (StreamingFlowPolicyBase):
                 probabilities for each trajectory.
             σ0 (float): Standard deviation of the Gaussian tube at time t=0.
         """
-        super().__init__(dim=2, trajectories=trajectories, prior=prior)
+        super().__init__(dim=dim, trajectories=trajectories, prior=prior)
         self.σ0 = σ0
 
     def μΣ0(self, traj: Trajectory) -> Tuple[Tensor, Tensor]:
