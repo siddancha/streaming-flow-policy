@@ -5,10 +5,10 @@ from typing import List, Tuple
 
 from pydrake.all import Trajectory
 
-from streaming_flow_policy.toy.sfpl_base import StreamingFlowPolicyLatentBase
+from streaming_flow_policy.core.sfpl_base import StreamingFlowPolicyLatentBase
 
 
-class StreamingFlowPolicyLatentBad (StreamingFlowPolicyLatentBase):
+class StreamingFlowPolicyLatent (StreamingFlowPolicyLatentBase):
     def __init__(
         self,
         trajectories: List[Trajectory],
@@ -23,8 +23,8 @@ class StreamingFlowPolicyLatentBad (StreamingFlowPolicyLatentBase):
         N(0, 1).
 
         Let ξ(t) be the demonstration trajectory.
-        Define constant σᵣ = √(σ₁²exp(2k) - σ₀²).
-        Note that σ₁²exp(2k) = σ₀² + σᵣ².
+        Define constant σᵣ = √(σ₁² - σ₀²exp(-2k)).
+        Note that σ₁² = σ₀²exp(-2k) + σᵣ².
 
         Conditional flow:
         • At time t=0, we sample:
@@ -32,7 +32,7 @@ class StreamingFlowPolicyLatentBad (StreamingFlowPolicyLatentBase):
             • z₀ ~ N(0, 1)
 
         • Flow trajectory at time t:
-            • q(t) = ξ(t) + (q₀ - ξ(0) + σᵣtz₀) exp(-kt)
+            • q(t) = ξ(t) + (q₀ - ξ(0)) exp(-kt) + σᵣtz₀
             • z(t) = (1 - (1-σ₁)t)z₀ + tξ(t)
               • z starts from a pure noise sample z₀ that drifts towards the
               trajectory. Therefore, z(t) is uncorrelated with q at t=0, but
@@ -50,9 +50,9 @@ class StreamingFlowPolicyLatentBad (StreamingFlowPolicyLatentBase):
         self.σ1 = σ1
         self.k = k
 
-        # Residual standard deviation: √(σ₁²exp(2k) - σ₀²)
+        # Residual standard deviation: √(σ₁² - σ₀²exp(-2k))
         assert 0 <= σ0 * np.exp(-k) <= σ1, "σ1 is too small relative to σ0"
-        self.σr = np.sqrt(np.square(σ1) * np.exp(2 * k) - np.square(σ0))
+        self.σr = np.sqrt(np.square(σ1) - np.square(σ0) * np.exp(-2 * k))
 
     def Ab(self, traj: Trajectory, t: Tensor) -> Tuple[Tensor, Tensor]:
         """
@@ -74,8 +74,8 @@ class StreamingFlowPolicyLatentBad (StreamingFlowPolicyLatentBase):
 
         b = torch.stack([ξt - ξ0 * αt, t * ξt], dim=-1)  # (*BS, 2)
         A = self.matrix_stack([
-            [αt,     σr * t * αt],
-            [0, 1 - (1 - σ1) * t],
+            [αt,           σr * t],
+            [ 0, 1 - (1 - σ1) * t],
         ])  # (*BS, 2, 2)
         return A, b
 
@@ -84,18 +84,18 @@ class StreamingFlowPolicyLatentBad (StreamingFlowPolicyLatentBase):
         Compute the conditional velocity field for a given trajectory.
 
         • Flow trajectory at time t:
-            • q(t) = ξ(t) + (q₀ - ξ(0) + σᵣtz₀) exp(-kt)
+            • q(t) = ξ(t) + (q₀ - ξ(0)) exp(-kt) + σᵣtz₀
             • z(t) = (1 - (1-σ₁)t)z₀ + tξ(t)
 
         • Conditional velocity field:
             • First, given q(t) and z(t), we want to compute q₀ and z₀.
                 • z₀ = (z(t) - tξ(t)) / (1 - (1-σ₁)t)
-                • q₀ = ξ(0) + (q(t) - ξ(t)) exp(kt) - σᵣtz₀
+                • q₀ = ξ(0) + (q(t) - ξ(t) - σᵣtz₀) exp(kt)
             • Then, we compute the velocity for the conditional flow.
-                • vq(q, z, t) = ξ̇(t) -k(q₀ - ξ(0) + σᵣtz₀)exp(-kt) + σᵣz₀exp(-kt)
+                • vq(q, z, t) = ξ̇(t) -k(q₀ - ξ(0))exp(-kt) + σᵣz₀
                 • vz(q, z, t) = ξ(t) + tξ̇(t) - (1-σ₁)z₀
             • Plugging (z₀, q₀) into the velocity gives us the velocity field:
-                • vq(q, z, t) = ξ̇(t) - k(q - ξ(t)) + σᵣexp(-kt) / (1 - (1-σ₁)t) * (z - tξ(t))
+                • vq(q, z, t) = ξ̇(t) - k(q - ξ(t)) + σᵣ(1 + kt) / (1 - (1-σ₁)t) * (z - tξ(t))
                 • vz(q, z, t) = ξ(t) + tξ̇(t) - (1-σ₁) / (1 - (1-σ₁)t) * (z - tξ(t))
 
         Args:
@@ -115,13 +115,12 @@ class StreamingFlowPolicyLatentBad (StreamingFlowPolicyLatentBase):
         ξt = self.ξt(traj, t)  # (*BS, 1)
         ξ̇t = self.ξ̇t(traj, t)  # (*BS, 1)
         t = t.unsqueeze(-1)  # (*BS, 1)
-        αt = torch.exp(-k * t)  # (*BS, 1)
 
         # Invert zt to get z0
         z0 = (zt - t * ξt) / (1 - (1 - σ1) * t)  # (*BS, 1)
 
         # Compute velocity field
-        vq = ξ̇t - k * (qt - ξt) + σr * z0 * αt  # (*BS, 1)
+        vq = ξ̇t - k * (qt - ξt) + σr * (1 + k * t) * z0  # (*BS, 1)
         vz = ξt + t * ξ̇t - (1 - σ1) * z0  # (*BS, 1)
 
         return torch.cat([vq, vz], dim=-1)  # (*BS, 2)
@@ -131,10 +130,10 @@ class StreamingFlowPolicyLatentBad (StreamingFlowPolicyLatentBase):
         Compute the expected velocity field of q over z given q, t and a trajectory.
 
         The velocity field is given by:
-            • vq(q, z, t) = ξ̇(t) - k(q - ξ(t)) + σᵣexp(-kt) / (1 - (1-σ₁)t) * (z - tξ(t))
+            • vq(q, z, t) = ξ̇(t) - k(q - ξ(t)) + σᵣ(1 + kt) / (1 - (1-σ₁)t) * (z - tξ(t))
         
         Therefore, the expected velocity under N(μ_z|q, Σ_z|q) is given by:
-            • 𝔼[vq(q, z, t)] = ξ̇(t) - k(q - ξ(t)) + σᵣexp(-kt) / (1 - (1-σ₁)t) * (μ_z|q - tξ(t))
+            • 𝔼[vq(q, z, t)] = ξ̇(t) - k(q - ξ(t)) + σᵣ(1 + kt) / (1 - (1-σ₁)t) * (μ_z|q - tξ(t))
 
         Args:
             traj (Trajectory): Demonstration trajectory.
@@ -154,13 +153,12 @@ class StreamingFlowPolicyLatentBad (StreamingFlowPolicyLatentBase):
         ξt = self.ξt(traj, t)  # (*BS, 1)
         ξ̇t = self.ξ̇t(traj, t)  # (*BS, 1)
         t = t.unsqueeze(-1)  # (*BS, 1)
-        αt = torch.exp(-k * t)  # (*BS, 1)
 
         # Expected z0 given q
         μ_z0Cq = (μ_zCq - t * ξt) / (1 - (1 - σ1) * t)  # (*BS, 1)
 
         # Compute expected velocity field
-        𝔼vq = ξ̇t - k * (q - ξt) + σr * μ_z0Cq * αt  # (*BS, 1)
+        𝔼vq = ξ̇t - k * (q - ξt) + σr * (1 + k * t) * μ_z0Cq  # (*BS, 1)
         return 𝔼vq  # (*BS, 1)
 
     def 𝔼vz_conditional(self, traj: Trajectory, z: Tensor, t: Tensor) -> Tensor:
