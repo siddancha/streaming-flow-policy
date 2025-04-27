@@ -91,8 +91,11 @@ class FrankaPickImageDataset(BaseImageDataset):
 
 
 def test():
-    zarr_path = './data/franka_test.zarr'
+    zarr_path = './data/franka_pick.zarr'
     dataset = FrankaPickImageDataset(zarr_path, horizon=16)
+
+    # for i in range(1000):
+    #     print(dataset.__getitem__(i)['action'][-1, -1],)
 
     from matplotlib import pyplot as plt
     normalizer = dataset.get_normalizer()
