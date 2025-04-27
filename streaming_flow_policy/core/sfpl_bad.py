@@ -72,7 +72,7 @@ class StreamingFlowPolicyLatentBad (StreamingFlowPolicyLatentBase):
         σr = self.σr  # (,)
         k = self.k  # (,)
 
-        ξ0 = torch.tensor(traj.value(0)).ravel()  # (D,)
+        ξ0 = self.ξt(traj, torch.tensor(0.))  # (D,)
         ξt = self.ξt(traj, t)  # (*BS, D)
         αt = torch.exp(-k * t)  # (*BS)
 

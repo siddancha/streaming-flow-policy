@@ -60,7 +60,7 @@ class StreamingFlowPolicyLatentBase (StreamingFlowPolicyBase):
         O = torch.zeros(self.D, self.D)  # (D, D) zero matrix
         zero_vector = torch.zeros(self.D)  # (D,) zero vector
 
-        ξ0 = torch.tensor(traj.value(0)).ravel()  # (D,)
+        ξ0 = self.ξt(traj, torch.tensor(0.))  # (D,)
         σ0 = self.σ0 * I  # (D, D)
 
         μ0 = torch.cat([ξ0, zero_vector], dim=-1)  # (2D,)
