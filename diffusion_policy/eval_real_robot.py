@@ -16,7 +16,7 @@ import torch
 import hydra
 import dill
 import numpy as np
-from diffusion_policy.convert_to_zarr import get_state, preprocess_rgb
+from diffusion_policy.convert_to_zarr import get_state, preprocess_rgb, center_crop
 from diffusion_policy.common.pytorch_util import dict_apply
 from diffusion_policy.workspace import BaseWorkspace
 from diffusion_policy.policy.base_image_policy import BaseImagePolicy
@@ -26,15 +26,13 @@ from diffusion_policy.hw_utils.rotation_utils import compute_rotation_matrix_fro
 
 CONTROL_FREQUENCY = 10 # Default 20 Hz
 
-def get_obs_dict(obs_im_buffer, robot_client_interface):
-    images = np.array([preprocess_rgb(im) for im in obs_im_buffer[-2:]])
+def get_obs_dict(obs_im_buffer, action_buffer):
+    images = np.array([preprocess_rgb(center_crop(im)) for im in obs_im_buffer[-2:]])
     image = np.moveaxis(images, -1, 1) / 255
-    robot_state_10d = get_state(robot_client_interface.get_current_joint_states()).astype(np.float32)  # (agent_posx2, block_posex3)
+    robot_states_10d = np.stack([get_state(state).astype(np.float32) for state in action_buffer[-2:]])
     obs_dict_np = {
-        'obs': {
-            'image': image,
-            'agent_pos': robot_state_10d,  # T, 10
-        },
+        'image': image,
+        'agent_pos': robot_states_10d,  # T, 10
     }
     return obs_dict_np
 
@@ -42,9 +40,9 @@ def get_obs_dict(obs_im_buffer, robot_client_interface):
 def get_mat4_from_9d(ee_pose_9d):
     # Convert 9D pose to 4x4 matrix
     translation = ee_pose_9d[:3]
-    rotation = ee_pose_9d[3:6]
+    rotation = ee_pose_9d[3:]
     mat4 = np.eye(4)
-    mat4[:3, :3] = compute_rotation_matrix_from_ortho6d(torch.from_numpy(rotation)).numpy()
+    mat4[:3, :3] = compute_rotation_matrix_from_ortho6d(torch.from_numpy(rotation).unsqueeze(0)).numpy()[0]
     mat4[:3, 3] = translation
     return mat4
 
@@ -79,19 +77,20 @@ def main(args):
     robot_interface = initialize_robot_interface(args.robot_ip)
 
     cv2.namedWindow(camera_names[0], cv2.WINDOW_NORMAL)
-    rgb_im = robot_interface.capture_image()['rgb']
+    rgb_im = robot_interface.capture_image()[0]
+    robot_state = robot_interface.get_current_joint_states()
     obs_im_buffer = [rgb_im, rgb_im]
+    action_buffer = [robot_state, robot_state]
 
     # dry run test
     with torch.no_grad():
         policy.reset()
-        obs_dict_np = get_obs_dict(obs_im_buffer, robot_interface)
+        obs_dict_np = get_obs_dict(obs_im_buffer, action_buffer)
         obs_dict = dict_apply(obs_dict_np, lambda x: torch.from_numpy(x).unsqueeze(0).to(device))
         result = policy.predict_action(obs_dict)
         action = result['action'][0].detach().to('cpu').numpy()
         print(f'{action.shape=}')
         assert action.shape[-1] == 10
-        from IPython import embed; embed()
         del result
 
 
@@ -106,8 +105,9 @@ def main(args):
             start_time = time.time()
             try:
                 # Get the current observation
-                obs_rgb = robot_interface.capture_image()['rgb']
+                obs_rgb = robot_interface.capture_image()[0]
                 obs_im_buffer.append(obs_rgb)
+                action_buffer.append(robot_interface.get_current_joint_states())
 
                 # Send websocket request to policy server if it's time to predict a new chunk
                 if actions_from_chunk_completed == 0 or actions_from_chunk_completed >= args.open_loop_horizon:
@@ -116,7 +116,7 @@ def main(args):
                     # run inference
                     with torch.no_grad():
                         s = time.time()
-                        obs_dict_np = get_obs_dict(obs_im_buffer, robot_interface)
+                        obs_dict_np = get_obs_dict(obs_im_buffer, action_buffer)
 
                         obs_dict = dict_apply(obs_dict_np, lambda x: torch.from_numpy(x).unsqueeze(0).to(device))
                         result = policy.predict_action(obs_dict)
@@ -163,6 +163,7 @@ def main(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--ckpt_path', type=str, required=True, help='Path to the checkpoint file')
-    parser.add_argument('--robot_ip', type=str, default=f'tcp://{os.environ["FR3_CONTROL_IP"]}:5560')
+    parser.add_argument('--robot_ip', type=str, default=f'tcp://{os.environ["FR3_CONTROL_ADDR"]}:5560')
+    parser.add_argument('--open_loop_horizon', type=int, default=8, help='Open loop horizon for action prediction')
     args = parser.parse_args()
     main(args)
