@@ -30,10 +30,10 @@ class StreamingFlowPolicyBase (ABC):
         """
         Args:
             traj (Trajectory): Demonstration trajectory.
-            t (Tensor, dtype=double, shape=(*BS)): Time values in [0,1].
+            t (Tensor, dtype=default, shape=(*BS)): Time values in [0,1].
 
         Returns:
-            Tensor, dtype=double, shape=(*BS, X): Configuration values at time t.
+            Tensor, dtype=default, shape=(*BS, X): Configuration values at time t.
         """
         BS = t.shape
         ξt = traj.vector_values(t.ravel().numpy())  # (X, *BS)
@@ -46,10 +46,10 @@ class StreamingFlowPolicyBase (ABC):
         """
         Args:
             traj (Trajectory): Demonstration trajectory.
-            t (Tensor, dtype=double, shape=(*BS)): Time values in [0,1].
+            t (Tensor, dtype=default, shape=(*BS)): Time values in [0,1].
 
         Returns:
-            Tensor, dtype=double, shape=(*BS, X): Velocity at time t.
+            Tensor, dtype=default, shape=(*BS, X): Velocity at time t.
         """
         BS = t.shape
         traj_ξ̇ = traj.MakeDerivative()
@@ -62,11 +62,11 @@ class StreamingFlowPolicyBase (ABC):
     def block_matrix(grid: List[List[Tensor]]) -> Tensor:
         """
         Args:
-            grid (List[List[(Tensor, dtype=double, shape=(*BS, D, D))]]): grid
+            grid (List[List[(Tensor, dtype=default, shape=(*BS, D, D))]]): grid
                 of tensor blocks to be concatenated into a larger matrix.
 
         Returns:
-            (Tensor, dtype=double, shape=(*BS, M * D, N * D)): Concatenated
+            (Tensor, dtype=default, shape=(*BS, M * D, N * D)): Concatenated
                 block matrix.
         """
         # First, convert all cells into tensors.
@@ -86,11 +86,11 @@ class StreamingFlowPolicyBase (ABC):
         """
         Args:
             traj (Trajectory): Demonstration trajectory.
-            t (Tensor, dtype=double, shape=(*BS)): Time values in [0,1].
+            t (Tensor, dtype=default, shape=(*BS)): Time values in [0,1].
 
         Returns:
-            A (Tensor, dtype=double, shape=(*BS, X, X)): Transition matrix.
-            b (Tensor, dtype=double, shape=(*BS, X)): Bias vector.
+            A (Tensor, dtype=default, shape=(*BS, X, X)): Transition matrix.
+            b (Tensor, dtype=default, shape=(*BS, X)): Bias vector.
         """
         return NotImplementedError
 
@@ -100,8 +100,8 @@ class StreamingFlowPolicyBase (ABC):
         Compute the mean and covariance matrix of the conditional flow at time t=0.
 
         Returns:
-            Tensor, dtype=double, shape=(X,): Mean at time t=0.
-            Tensor, dtype=double, shape=(X, X): Covariance matrix at time t=0.
+            Tensor, dtype=default, shape=(X,): Mean at time t=0.
+            Tensor, dtype=default, shape=(X, X): Covariance matrix at time t=0.
         """
         return NotImplementedError
 
@@ -111,11 +111,11 @@ class StreamingFlowPolicyBase (ABC):
 
         Args:
             traj (Trajectory): Demonstration trajectory.
-            t (np.ndarray, dtype=float, shape=(*BS)): Time values in [0,1].
+            t (Tensor, dtype=default, shape=(*BS)): Time values in [0,1].
 
         Returns:
-            Tensor, dtype=double, shape=(*BS, X): Mean at time t.
-            Tensor, dtype=double, shape=(*BS, X, X): Covariance matrix at time t.
+            Tensor, dtype=default, shape=(*BS, X): Mean at time t.
+            Tensor, dtype=default, shape=(*BS, X, X): Covariance matrix at time t.
         """
         μ0, Σ0 = self.μΣ0(traj)  # (X,) and (X, X)
         A, b = self.Ab(traj, t)  # (*BS, X, X) and (*BS, X)
@@ -131,11 +131,11 @@ class StreamingFlowPolicyBase (ABC):
 
         Args:
             traj (Trajectory): Demonstration trajectory.
-            x (Tensor, dtype=double, shape=(*BS, X)): State values.
-            t (Tensor, dtype=double, shape=(*BS)): Time values in [0,1].
+            x (Tensor, dtype=default, shape=(*BS, X)): State values.
+            t (Tensor, dtype=default, shape=(*BS)): Time values in [0,1].
 
         Returns:
-            (Tensor, dtype=double, shape=(*BS)): Probability of the conditional
+            (Tensor, dtype=default, shape=(*BS)): Probability of the conditional
                 flow at state x and time t.
         """
         assert x.shape[-1] == self.X
@@ -148,11 +148,11 @@ class StreamingFlowPolicyBase (ABC):
         Compute log-probability of the marginal flow at state x and time t.
 
         Args:
-            x (Tensor, dtype=double, shape=(*BS, X)): State values.
-            t (Tensor, dtype=double, shape=(*BS)): Time values in [0,1].
+            x (Tensor, dtype=default, shape=(*BS, X)): State values.
+            t (Tensor, dtype=default, shape=(*BS)): Time values in [0,1].
 
         Returns:
-            (Tensor, dtype=double, shape=(*BS)): Log-probability of the marginal
+            (Tensor, dtype=default, shape=(*BS)): Log-probability of the marginal
                 flow at state x and time t.
         """
         log_pdf = torch.tensor(-torch.inf, dtype=torch.get_default_dtype())
@@ -168,22 +168,22 @@ class StreamingFlowPolicyBase (ABC):
 
         Args:
             traj (Trajectory): Demonstration trajectory.
-            x (Tensor, dtype=double, shape=(*BS, X)): State values.
-            t (Tensor, dtype=double, shape=(*BS)): Time values in [0,1].
+            x (Tensor, dtype=default, shape=(*BS, X)): State values.
+            t (Tensor, dtype=default, shape=(*BS)): Time values in [0,1].
 
         Returns:
-            (Tensor, dtype=double, shape=(*BS, X)): Velocity of the conditional flow.
+            (Tensor, dtype=default, shape=(*BS, X)): Velocity of the conditional flow.
         """
         raise NotImplementedError
 
     def v_marginal(self, x: Tensor, t: Tensor) -> Tensor:
         """
         Args:
-            x (Tensor, dtype=double, shape=(*BS, X)): State values.
-            t (Tensor, dtype=double, shape=(*BS)): Time values in [0,1].
+            x (Tensor, dtype=default, shape=(*BS, X)): State values.
+            t (Tensor, dtype=default, shape=(*BS)): Time values in [0,1].
 
         Returns:
-            (Tensor, dtype=double, shape=(X,)): Marginal velocities.
+            (Tensor, dtype=default, shape=(X,)): Marginal velocities.
         """
         log_likelihoods = torch.stack([self.log_pdf_conditional(traj, x, t) for traj in self.trajectories], dim=-1)  # (*BS, K)
         velocities = torch.stack([self.v_conditional(traj, x, t) for traj in self.trajectories], dim=-2)  # (*BS, K, X)
@@ -202,7 +202,7 @@ class StreamingFlowPolicyBase (ABC):
     def ode_integrate(self, x: Tensor, num_steps: int = 1000) -> List[Trajectory]:
         """
         Args:
-            x (Tensor, dtype=double, shape=(L, X)): Initial state.
+            x (Tensor, dtype=default, shape=(L, X)): Initial state.
             num_steps (int): Number of steps to integrate.
             
         Returns:

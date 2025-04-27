@@ -53,8 +53,8 @@ class StreamingFlowPolicyLatentBase (StreamingFlowPolicyBase):
         Compute the mean and covariance matrix of the conditional flow at time t=0.
 
         Returns:
-            Tensor, dtype=double, shape=(2D,): Mean at time t=0.
-            Tensor, dtype=double, shape=(2D, 2D): Covariance matrix at time t=0.
+            Tensor, dtype=default, shape=(2D,): Mean at time t=0.
+            Tensor, dtype=default, shape=(2D, 2D): Covariance matrix at time t=0.
         """
         I = torch.eye(self.D)  # (D, D) identity matrix
         O = torch.zeros(self.D, self.D)  # (D, D) zero matrix
@@ -77,12 +77,12 @@ class StreamingFlowPolicyLatentBase (StreamingFlowPolicyBase):
 
         Args:
             traj (Trajectory): Demonstration trajectory.
-            t (Tensor, dtype=double, shape=(*BS)): Time value in [0,1].
-            q (Tensor, dtype=double, shape=(*BS, D)): Configuration.
+            t (Tensor, dtype=default, shape=(*BS)): Time value in [0,1].
+            q (Tensor, dtype=default, shape=(*BS, D)): Configuration.
 
         Returns:
-            Tensor, dtype=double, shape=(*BS, D): Mean at time t.
-            Tensor, dtype=double, shape=(*BS, D, D): Covariance matrix at time t.
+            Tensor, dtype=default, shape=(*BS, D): Mean at time t.
+            Tensor, dtype=default, shape=(*BS, D, D): Covariance matrix at time t.
         """
         μ_qz, Σ_qz = self.μΣt(traj, t)  # (*BS, 2D), (*BS, 2D, 2D)
         μq, μz = μ_qz[..., self.slice_q], μ_qz[..., self.slice_z]  # (*BS, D) and (*BS, D)
@@ -108,11 +108,11 @@ class StreamingFlowPolicyLatentBase (StreamingFlowPolicyBase):
         
         Args:
             traj (Trajectory): Demonstration trajectory.
-            q (Tensor, dtype=double, shape=(*BS, D)): Configuration.
-            t (Tensor, dtype=double, shape=(*BS)): Time value in [0,1].
+            q (Tensor, dtype=default, shape=(*BS, D)): Configuration.
+            t (Tensor, dtype=default, shape=(*BS)): Time value in [0,1].
             
         Returns:
-            (Tensor, dtype=double, shape=(*BS)): Log-probability of the
+            (Tensor, dtype=default, shape=(*BS)): Log-probability of the
                 conditional flow at configuration q and time t.
         """
         μ_qz, Σ_qz = self.μΣt(traj, t)  # (*BS, 2D), (*BS, 2D, 2D)
@@ -126,11 +126,11 @@ class StreamingFlowPolicyLatentBase (StreamingFlowPolicyBase):
         Compute log-probability of the marginal flow at configuration q and time t.
         
         Args:
-            q (Tensor, dtype=double, shape=(*BS, D)): Configuration.
-            t (Tensor, dtype=double, shape=(*BS)): Time value in [0,1].
+            q (Tensor, dtype=default, shape=(*BS, D)): Configuration.
+            t (Tensor, dtype=default, shape=(*BS)): Time value in [0,1].
             
         Returns:
-            (Tensor, dtype=double, shape=(*BS)): Log-probability of the marginal
+            (Tensor, dtype=default, shape=(*BS)): Log-probability of the marginal
                 flow at configuration q and time t.
         """
         log_pdf = torch.tensor(-torch.inf, dtype=torch.get_default_dtype())
@@ -145,11 +145,11 @@ class StreamingFlowPolicyLatentBase (StreamingFlowPolicyBase):
         
         Args:
             traj (Trajectory): Demonstration trajectory.
-            z (Tensor, dtype=double, shape=(*BS, D)): Latent variable value.
-            t (Tensor, dtype=double, shape=(*BS)): Time value in [0,1].
+            z (Tensor, dtype=default, shape=(*BS, D)): Latent variable value.
+            t (Tensor, dtype=default, shape=(*BS)): Time value in [0,1].
             
         Returns:
-            (Tensor, dtype=double, shape=(*BS)): Log-probability of the
+            (Tensor, dtype=default, shape=(*BS)): Log-probability of the
                 conditional flow at latent z and time t.
         """
         μ_qz, Σ_qz = self.μΣt(traj, t)  # (*BS, 2D), (*BS, 2D, 2D)
@@ -163,11 +163,11 @@ class StreamingFlowPolicyLatentBase (StreamingFlowPolicyBase):
         Compute log-probability of the marginal flow at latent z and time t.
         
         Args:
-            z (Tensor, dtype=double, shape=(*BS, D)): Latent variable value.
-            t (Tensor, dtype=double, shape=(*BS)): Time value in [0,1].
+            z (Tensor, dtype=default, shape=(*BS, D)): Latent variable value.
+            t (Tensor, dtype=default, shape=(*BS)): Time value in [0,1].
             
         Returns:
-            (Tensor, dtype=double, shape=(*BS)): Log-probability of the marginal
+            (Tensor, dtype=default, shape=(*BS)): Log-probability of the marginal
                 flow at latent z and time t.
         """
         log_pdf = torch.tensor(-torch.inf, dtype=torch.get_default_dtype())
@@ -182,11 +182,11 @@ class StreamingFlowPolicyLatentBase (StreamingFlowPolicyBase):
         given q and t.
 
         Args:
-            q (Tensor, dtype=double, shape=(*BS, D)): Configuration.
-            t (Tensor, dtype=double, shape=(*BS)): Time value in [0,1].
+            q (Tensor, dtype=default, shape=(*BS, D)): Configuration.
+            t (Tensor, dtype=default, shape=(*BS)): Time value in [0,1].
 
         Returns:
-            (Tensor, dtype=double, shape=(*BS, K)): p(ξ | q, t).
+            (Tensor, dtype=default, shape=(*BS, K)): p(ξ | q, t).
         """
         list_log_pdf: List[Tensor] = []
         for π, traj in zip(self.π, self.trajectories):
@@ -201,11 +201,11 @@ class StreamingFlowPolicyLatentBase (StreamingFlowPolicyBase):
         given z and t.
 
         Args:
-            z (Tensor, dtype=double, shape=(*BS, D)): Latent variable value.
-            t (Tensor, dtype=double, shape=(*BS)): Time value in [0,1].
+            z (Tensor, dtype=default, shape=(*BS, D)): Latent variable value.
+            t (Tensor, dtype=default, shape=(*BS)): Time value in [0,1].
 
         Returns:
-            (Tensor, dtype=double, shape=(*BS, K)): p(ξ | z, t).
+            (Tensor, dtype=default, shape=(*BS, K)): p(ξ | z, t).
         """
         list_log_pdf = []
         for π, traj in zip(self.π, self.trajectories):
@@ -221,11 +221,11 @@ class StreamingFlowPolicyLatentBase (StreamingFlowPolicyBase):
 
         Args:
             traj (Trajectory): Demonstration trajectory.
-            q (Tensor, dtype=double, shape=(*BS, D)): Configuration.
-            t (Tensor, dtype=double, shape=(*BS)): Time value in [0,1].
+            q (Tensor, dtype=default, shape=(*BS, D)): Configuration.
+            t (Tensor, dtype=default, shape=(*BS)): Time value in [0,1].
 
         Returns:
-            (Tensor, dtype=double, shape=(*BS, D)):
+            (Tensor, dtype=default, shape=(*BS, D)):
                 expected value of vq over z given q, t and a trajectory.
         """
         raise NotImplementedError
@@ -237,11 +237,11 @@ class StreamingFlowPolicyLatentBase (StreamingFlowPolicyBase):
 
         Args:
             traj (Trajectory): Demonstration trajectory.
-            z (Tensor, dtype=double, shape=(*BS, D)): Latent variable value.
-            t (Tensor, dtype=double, shape=(*BS)): Time value in [0,1].
+            z (Tensor, dtype=default, shape=(*BS, D)): Latent variable value.
+            t (Tensor, dtype=default, shape=(*BS)): Time value in [0,1].
 
         Returns:
-            (Tensor, dtype=double, shape=(*BS, D)):
+            (Tensor, dtype=default, shape=(*BS, D)):
                 expected value of vz given z, t and a trajectory.
         """
         raise NotImplementedError
@@ -251,11 +251,11 @@ class StreamingFlowPolicyLatentBase (StreamingFlowPolicyBase):
         Compute the expected velocity field of q over z given q, t.
 
         Args:
-            q (Tensor, dtype=double, shape=(*BS, D)): Configuration.
-            t (Tensor, dtype=double, shape=(*BS)): Time value in [0,1].
+            q (Tensor, dtype=default, shape=(*BS, D)): Configuration.
+            t (Tensor, dtype=default, shape=(*BS)): Time value in [0,1].
 
         Returns:
-            (Tensor, dtype=double, shape=(*BS, D)):
+            (Tensor, dtype=default, shape=(*BS, D)):
                 expected value of vq given q, t.
         """
         posterior_ξ = self.pdf_posterior_ξCq(q, t)  # (*BS, K)
@@ -271,11 +271,11 @@ class StreamingFlowPolicyLatentBase (StreamingFlowPolicyBase):
         Compute the expected velocity field of z over q given z, t.
 
         Args:
-            z (Tensor, dtype=double, shape=(*BS, D)): Latent variable value.
-            t (Tensor, dtype=double, shape=(*BS)): Time value in [0,1].
+            z (Tensor, dtype=default, shape=(*BS, D)): Latent variable value.
+            t (Tensor, dtype=default, shape=(*BS)): Time value in [0,1].
 
         Returns:
-            (Tensor, dtype=double, shape=(*BS, D)):
+            (Tensor, dtype=default, shape=(*BS, D)):
                 expected value of vz over q given z, t.
         """
         posterior_ξ = self.pdf_posterior_ξCz(z, t)  # (*BS, K)

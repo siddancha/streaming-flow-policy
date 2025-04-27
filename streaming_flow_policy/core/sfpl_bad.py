@@ -59,11 +59,11 @@ class StreamingFlowPolicyLatentBad (StreamingFlowPolicyLatentBase):
         """
         Args:
             traj (Trajectory): Demonstration trajectory.
-            t (Tensor, dtype=double, shape=(*BS)): Time value in [0,1].
+            t (Tensor, dtype=default, shape=(*BS)): Time value in [0,1].
 
         Returns:
-            A (Tensor, dtype=double, shape=(*BS, 2D, 2D)): Transition matrix.
-            b (Tensor, dtype=double, shape=(*BS, 2D)): Bias vector.
+            A (Tensor, dtype=default, shape=(*BS, 2D, 2D)): Transition matrix.
+            b (Tensor, dtype=default, shape=(*BS, 2D)): Bias vector.
         """
         I = torch.eye(self.D)  # (D, D)
         O = torch.zeros(self.D, self.D)  # (D, D)
@@ -111,11 +111,11 @@ class StreamingFlowPolicyLatentBad (StreamingFlowPolicyLatentBase):
 
         Args:
             traj (Trajectory): Demonstration trajectory.
-            x (Tensor, dtype=double, shape=(*BS, 2D)): State values.
-            t (Tensor, dtype=double, shape=(*BS)): Time value in [0,1].
+            x (Tensor, dtype=default, shape=(*BS, 2D)): State values.
+            t (Tensor, dtype=default, shape=(*BS)): Time value in [0,1].
             
         Returns:
-            (Tensor, dtype=double, shape=(*BS, 2D)): Velocity of conditional flow.
+            (Tensor, dtype=default, shape=(*BS, 2D)): Velocity of conditional flow.
         """
         σ1 = self.σ1
         σr = self.σr
@@ -149,11 +149,11 @@ class StreamingFlowPolicyLatentBad (StreamingFlowPolicyLatentBase):
 
         Args:
             traj (Trajectory): Demonstration trajectory.
-            q (Tensor, dtype=double, shape=(*BS, D)): Configuration.
-            t (Tensor, dtype=double, shape=(*BS)): Time value in [0,1].
+            q (Tensor, dtype=default, shape=(*BS, D)): Configuration.
+            t (Tensor, dtype=default, shape=(*BS)): Time value in [0,1].
 
         Returns:
-            (Tensor, dtype=double, shape=(*BS, D)):
+            (Tensor, dtype=default, shape=(*BS, D)):
                 expected value of vq over z given q, t and a trajectory.
         """
         σ1 = self.σ1
@@ -189,11 +189,11 @@ class StreamingFlowPolicyLatentBad (StreamingFlowPolicyLatentBase):
 
         Args:
             traj (Trajectory): Demonstration trajectory.
-            z (Tensor, dtype=double, shape=(*BS, D)): Latent variable value.
-            t (Tensor, dtype=double, shape=(*BS)): Time value in [0,1].
+            z (Tensor, dtype=default, shape=(*BS, D)): Latent variable value.
+            t (Tensor, dtype=default, shape=(*BS)): Time value in [0,1].
 
         Returns:
-            (Tensor, dtype=double, shape=(*BS, D)):
+            (Tensor, dtype=default, shape=(*BS, D)):
                 expected value of vz given z, t and a trajectory.
         """
         σ1 = self.σ1
