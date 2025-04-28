@@ -36,7 +36,7 @@ class StreamingFlowPolicyBase (ABC):
             Tensor, dtype=default, shape=(*BS, X): Configuration values at time t.
         """
         BS = t.shape
-        ξt = traj.vector_values(t.ravel().numpy())  # (X, *BS)
+        ξt = traj.vector_values(t.ravel().cpu().numpy())  # (X, *BS)
         ξt = torch.tensor(ξt, dtype=torch.get_default_dtype()).reshape(-1, *BS)  # (X, *BS)
         ξt = ξt.movedim(0, -1)  # (*BS, X)
         return ξt
@@ -53,7 +53,7 @@ class StreamingFlowPolicyBase (ABC):
         """
         BS = t.shape
         traj_ξ̇ = traj.MakeDerivative()
-        ξ̇t = traj_ξ̇.vector_values(t.ravel().numpy())  # (X, *BS)
+        ξ̇t = traj_ξ̇.vector_values(t.ravel().cpu().numpy())  # (X, *BS)
         ξ̇t = torch.tensor(ξ̇t, dtype=torch.get_default_dtype()).reshape(-1, *BS)  # (X, *BS)
         ξ̇t = ξ̇t.movedim(0, -1)  # (*BS, X)
         return ξ̇t
