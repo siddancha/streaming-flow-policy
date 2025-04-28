@@ -40,6 +40,9 @@ class StreamingFlowPolicyLatent (StreamingFlowPolicyLatentBase):
               eventually becomes very informative of the trajectory.
 
         Args:
+            dim (int): Dimension of the **configuration** space. The dimension
+                of the state space will be twice the dimension of the
+                configuration space.
             trajectories (List[Trajectory]): List of trajectories.
             prior (np.ndarray, dtype=float, shape=(K,)): Prior
                 probabilities for each trajectory.
