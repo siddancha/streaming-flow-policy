@@ -1,0 +1,889 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="./" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Streaming flow policy with stabilizing conditional flow &#8212; Streaming Flow Policy</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="_static/styles/theme.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+<link href="_static/styles/bootstrap.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+<link href="_static/styles/pydata-sphinx-theme.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+
+  
+  <link href="_static/vendor/fontawesome/6.5.2/css/all.min.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+  <link rel="preload" as="font" type="font/woff2" crossorigin href="_static/vendor/fontawesome/6.5.2/webfonts/fa-solid-900.woff2" />
+<link rel="preload" as="font" type="font/woff2" crossorigin href="_static/vendor/fontawesome/6.5.2/webfonts/fa-brands-400.woff2" />
+<link rel="preload" as="font" type="font/woff2" crossorigin href="_static/vendor/fontawesome/6.5.2/webfonts/fa-regular-400.woff2" />
+
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=03e43079" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/sphinx-book-theme.css?v=eba8b062" />
+    <link rel="stylesheet" type="text/css" href="_static/togglebutton.css?v=13237357" />
+    <link rel="stylesheet" type="text/css" href="_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="_static/mystnb.4510f1fc1dee50b3e5859aac5469c37c29e427902b24a333a5f9fcb2f0b3ac41.css" />
+    <link rel="stylesheet" type="text/css" href="_static/sphinx-thebe.css?v=4fa983c6" />
+    <link rel="stylesheet" type="text/css" href="_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="_static/custom.css?v=e552f3e5" />
+  
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b" />
+<link rel="preload" as="script" href="_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b" />
+  <script src="_static/vendor/fontawesome/6.5.2/js/all.min.js?digest=dfe6caa3a7d634c4db9b"></script>
+
+    <script src="_static/documentation_options.js?v=9eb32ce0"></script>
+    <script src="_static/doctools.js?v=9a2dae69"></script>
+    <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="_static/copybutton.js?v=f281be69"></script>
+    <script src="_static/scripts/sphinx-book-theme.js?v=887ef09a"></script>
+    <script>let toggleHintShow = 'Click to show';</script>
+    <script>let toggleHintHide = 'Click to hide';</script>
+    <script>let toggleOpenOnPrint = 'true';</script>
+    <script src="_static/togglebutton.js?v=4a39c7ea"></script>
+    <script>var togglebuttonSelector = '.toggle, .admonition.dropdown';</script>
+    <script src="_static/design-tabs.js?v=f930bc37"></script>
+    <script>const THEBE_JS_URL = "https://unpkg.com/thebe@0.8.2/lib/index.js"; const thebe_selector = ".thebe,.cell"; const thebe_selector_input = "pre"; const thebe_selector_output = ".output, .cell_output"</script>
+    <script async="async" src="_static/sphinx-thebe.js?v=c100c467"></script>
+    <script>var togglebuttonSelector = '.toggle, .admonition.dropdown';</script>
+    <script>const THEBE_JS_URL = "https://unpkg.com/thebe@0.8.2/lib/index.js"; const thebe_selector = ".thebe,.cell"; const thebe_selector_input = "pre"; const thebe_selector_output = ".output, .cell_output"</script>
+    <script>window.MathJax = {"options": {"processHtmlClass": "tex2jax_process|mathjax_process|math|output_area"}}</script>
+    <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'stabilizing-sfp';</script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Decoupling stochasticity via latent variables" href="ess-bifurcation.html" />
+    <link rel="prev" title="Streaming flow policy: Notebooks" href="index.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <input type="checkbox"
+          class="sidebar-toggle"
+          id="pst-primary-sidebar-checkbox"/>
+  <label class="overlay overlay-primary" for="pst-primary-sidebar-checkbox"></label>
+  
+  <input type="checkbox"
+          class="sidebar-toggle"
+          id="pst-secondary-sidebar-checkbox"/>
+  <label class="overlay overlay-secondary" for="pst-secondary-sidebar-checkbox"></label>
+  
+  <div class="search-button__wrapper">
+    <div class="search-button__overlay"></div>
+    <div class="search-button__search-container">
+<form class="bd-search d-flex align-items-center"
+      action="search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         id="search-input"
+         placeholder="Search this book..."
+         aria-label="Search this book..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form></div>
+  </div>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <div class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="_static/logo.png" class="logo__image only-light" alt="Streaming Flow Policy - Home"/>
+    <script>document.write(`<img src="_static/logo.png" class="logo__image only-dark" alt="Streaming Flow Policy - Home"/>`);</script>
+  
+  
+</a></div>
+        <div class="sidebar-primary-item">
+
+ <script>
+ document.write(`
+   <button class="btn search-button-field search-button__button" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass"></i>
+    <span class="search-button__default-text">Search</span>
+    <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+   </button>
+ `);
+ </script></div>
+        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        
+        <ul class="nav bd-sidenav bd-sidenav__home-link">
+            <li class="toctree-l1">
+                <a class="reference internal" href="index.html">
+                    <b>Streaming flow policy</b>: Notebooks
+                </a>
+            </li>
+        </ul>
+        <ul class="current nav bd-sidenav">
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Streaming flow policy with stabilizing conditional flow</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ess-bifurcation.html">Decoupling stochasticity via latent variables</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ess-intersection.html">Flow matching matches marginal (not joint) distribution at every time step within trajectory chunk</a></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+  </div>
+  
+  <div id="rtd-footer-container"></div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</button></div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+
+
+
+<div class="dropdown dropdown-download-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Download this page">
+    <i class="fas fa-download"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="_sources/stabilizing-sfp.ipynb" target="_blank"
+   class="btn btn-sm btn-download-source-button dropdown-item"
+   title="Download source file"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file"></i>
+  </span>
+<span class="btn__text-container">.ipynb</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li>
+<button onclick="window.print()"
+  class="btn btn-sm btn-download-pdf-button dropdown-item"
+  title="Print to PDF"
+  data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file-pdf"></i>
+  </span>
+<span class="btn__text-container">.pdf</span>
+</button>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+
+<script>
+document.write(`
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button" title="light/dark" aria-label="light/dark" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="theme-switch fa-solid fa-sun fa-lg" data-mode="light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg" data-mode="dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"></i>
+  </button>
+`);
+</script>
+
+
+<script>
+document.write(`
+  <button class="btn btn-sm pst-navbar-icon search-button search-button__button" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+  </button>
+`);
+</script>
+<button class="sidebar-toggle secondary-toggle btn btn-sm" title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <span class="fa-solid fa-list"></span>
+</button>
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1>Streaming flow policy with stabilizing conditional flow</h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+            <div>
+                <h2> Contents </h2>
+            </div>
+            <nav aria-label="Page">
+                <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#set-hyperparameters">Set hyperparameters</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#plot-demonstration-trajectories">Plot demonstration trajectories</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#notation">Notation</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#hyperparameters">Hyperparameters</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#conditional-flow">Conditional flow</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#plot-conditional-probability-path-of-right-trajectory">Plot conditional probability path of right trajectory</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#plot-conditional-vector-field-of-right-trajectory">Plot conditional vector field of right trajectory</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#plot-trajectories-under-conditional-flow-of-right-trajectory">Plot trajectories under conditional flow of right trajectory</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#marginal-flow">Marginal flow</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#training">Training</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#flow-matching-theorem">Flow matching theorem</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#plot-marginal-probability-path">Plot marginal probability path</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#plot-marginal-vector-field">Plot marginal vector field</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#plot-trajectories-under-marginal-flow">Plot trajectories under marginal flow</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#pathology-when-starting-from-q-0">Pathology when starting from <span class="math notranslate nohighlight">\(q=0\)</span></a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#explanation">Explanation</a></li>
+</ul>
+</li>
+</ul>
+            </nav>
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section class="tex2jax_ignore mathjax_ignore" id="streaming-flow-policy-with-stabilizing-conditional-flow">
+<h1>Streaming flow policy with stabilizing conditional flow<a class="headerlink" href="#streaming-flow-policy-with-stabilizing-conditional-flow" title="Link to this heading">#</a></h1>
+<div class="cell docutils container">
+<div class="cell_input docutils container">
+<div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">matplotlib.pyplot</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">plt</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">torch</span><span class="p">;</span> <span class="n">torch</span><span class="o">.</span><span class="n">set_default_dtype</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">double</span><span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">streaming_flow_policy.all</span><span class="w"> </span><span class="kn">import</span> <span class="n">StreamingFlowPolicyCSpace</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">streaming_flow_policy.toy.plot_cspace</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">plot_probability_density</span><span class="p">,</span>
+    <span class="n">plot_probability_density_and_vector_field</span><span class="p">,</span>
+    <span class="n">plot_probability_density_and_streamlines</span><span class="p">,</span>
+    <span class="n">plot_probability_density_with_trajectories</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">pydrake.all</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">CompositeTrajectory</span><span class="p">,</span>
+    <span class="n">PiecewisePolynomial</span><span class="p">,</span>
+    <span class="n">Trajectory</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="c1"># Set seed</span>
+<span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">seed</span><span class="p">(</span><span class="mi">0</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+<section id="set-hyperparameters">
+<h2>Set hyperparameters<a class="headerlink" href="#set-hyperparameters" title="Link to this heading">#</a></h2>
+<div class="cell docutils container">
+<div class="cell_input docutils container">
+<div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">σ0</span> <span class="o">=</span> <span class="mf">0.05</span>
+<span class="n">k</span> <span class="o">=</span> <span class="mf">2.5</span>
+</pre></div>
+</div>
+</div>
+</div>
+<div class="cell docutils container">
+<div class="cell_input docutils container">
+<div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">demonstration_traj_right</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">Trajectory</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Returns a trajectory x(t) that is 0 for 0 &lt; t &lt; 0.25, and a sine curve</span>
+<span class="sd">    for 0.25 &lt; t &lt; 1 that starts at 0 and ends at 0.75.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">piece_1</span> <span class="o">=</span> <span class="n">PiecewisePolynomial</span><span class="o">.</span><span class="n">FirstOrderHold</span><span class="p">(</span>
+        <span class="n">breaks</span><span class="o">=</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mf">0.25</span><span class="p">],</span>
+        <span class="n">samples</span><span class="o">=</span><span class="p">[[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">]],</span>
+    <span class="p">)</span>
+    <span class="n">piece_2</span> <span class="o">=</span> <span class="n">PiecewisePolynomial</span><span class="o">.</span><span class="n">CubicWithContinuousSecondDerivatives</span><span class="p">(</span>
+        <span class="n">breaks</span><span class="o">=</span><span class="p">[</span><span class="mf">0.25</span><span class="p">,</span> <span class="mf">0.50</span><span class="p">,</span> <span class="mf">0.75</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">],</span>
+        <span class="n">samples</span><span class="o">=</span><span class="p">[[</span><span class="mf">0.00</span><span class="p">,</span> <span class="mf">0.62</span><span class="p">,</span> <span class="mf">0.70</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">]],</span>
+        <span class="n">sample_dot_at_start</span><span class="o">=</span><span class="p">[[</span><span class="mf">0.0</span><span class="p">]],</span>
+        <span class="n">sample_dot_at_end</span><span class="o">=</span><span class="p">[[</span><span class="o">-</span><span class="mf">0.7</span><span class="p">]],</span>
+    <span class="p">)</span>
+    <span class="k">return</span> <span class="n">CompositeTrajectory</span><span class="p">([</span><span class="n">piece_1</span><span class="p">,</span> <span class="n">piece_2</span><span class="p">])</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">demonstration_traj_left</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">Trajectory</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Returns a trajectory x(t) that is 0 for 0 &lt; t &lt; 0.25, and a sine curve</span>
+<span class="sd">    for 0.25 &lt; t &lt; 1 that starts at 0 and ends at 0.75.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">piece_1</span> <span class="o">=</span> <span class="n">PiecewisePolynomial</span><span class="o">.</span><span class="n">FirstOrderHold</span><span class="p">(</span>
+        <span class="n">breaks</span><span class="o">=</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mf">0.25</span><span class="p">],</span>
+        <span class="n">samples</span><span class="o">=</span><span class="p">[[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">]],</span>
+    <span class="p">)</span>
+    <span class="n">piece_2</span> <span class="o">=</span> <span class="n">PiecewisePolynomial</span><span class="o">.</span><span class="n">CubicWithContinuousSecondDerivatives</span><span class="p">(</span>
+        <span class="n">breaks</span><span class="o">=</span><span class="p">[</span><span class="mf">0.25</span><span class="p">,</span> <span class="mf">0.50</span><span class="p">,</span> <span class="mf">0.75</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">],</span>
+        <span class="n">samples</span><span class="o">=</span><span class="p">[[</span><span class="mf">0.00</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.62</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.70</span><span class="p">,</span> <span class="o">-</span><span class="mf">0.5</span><span class="p">]],</span>
+        <span class="n">sample_dot_at_start</span><span class="o">=</span><span class="p">[[</span><span class="mf">0.0</span><span class="p">]],</span>
+        <span class="n">sample_dot_at_end</span><span class="o">=</span><span class="p">[[</span><span class="mf">0.7</span><span class="p">]],</span>
+    <span class="p">)</span>
+    <span class="k">return</span> <span class="n">CompositeTrajectory</span><span class="p">([</span><span class="n">piece_1</span><span class="p">,</span> <span class="n">piece_2</span><span class="p">])</span>
+
+<span class="n">traj_right</span> <span class="o">=</span> <span class="n">demonstration_traj_right</span><span class="p">()</span>
+<span class="n">traj_left</span> <span class="o">=</span> <span class="n">demonstration_traj_left</span><span class="p">()</span>
+</pre></div>
+</div>
+</div>
+</div>
+</section>
+<section id="plot-demonstration-trajectories">
+<h2>Plot demonstration trajectories<a class="headerlink" href="#plot-demonstration-trajectories" title="Link to this heading">#</a></h2>
+<div class="cell docutils container">
+<div class="cell_input docutils container">
+<div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">Plot demonstration trajectory on x-y plane where x axis is the state in [-1, 1]</span>
+<span class="sd">and y axis is the time in [0, 1].</span>
+<span class="sd">&quot;&quot;&quot;</span>
+<span class="n">times</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">100</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">traj_right</span><span class="o">.</span><span class="n">vector_values</span><span class="p">(</span><span class="n">times</span><span class="p">)[</span><span class="mi">0</span><span class="p">],</span> <span class="n">times</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s1">&#39;blue&#39;</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">0.9</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">traj_left</span><span class="o">.</span><span class="n">vector_values</span><span class="p">(</span><span class="n">times</span><span class="p">)[</span><span class="mi">0</span><span class="p">],</span> <span class="n">times</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s1">&#39;red&#39;</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">0.9</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">xlim</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">ylim</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">xlabel</span><span class="p">(</span><span class="s1">&#39;Configuration&#39;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">ylabel</span><span class="p">(</span><span class="s1">&#39;Time ⟶&#39;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">title</span><span class="p">(</span><span class="s1">&#39;Demonstration Trajectories&#39;</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">grid</span><span class="p">(</span><span class="kc">True</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</pre></div>
+</div>
+</div>
+<div class="cell_output docutils container">
+<img alt="_images/29017c587ddf07dd4f4e71c1cb8aa3311216da4345c7ebbc7ffeb9d2e1f823d7.png" src="_images/29017c587ddf07dd4f4e71c1cb8aa3311216da4345c7ebbc7ffeb9d2e1f823d7.png" />
+</div>
+</div>
+</section>
+<section id="notation">
+<h2>Notation<a class="headerlink" href="#notation" title="Link to this heading">#</a></h2>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head text-center"><p>Symbol</p></th>
+<th class="head text-center"><p>Space</p></th>
+<th class="head text-center"><p>Meaning</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td class="text-center"><p><span class="math notranslate nohighlight">\(t\)</span></p></td>
+<td class="text-center"><p><span class="math notranslate nohighlight">\([0, 1]\)</span></p></td>
+<td class="text-center"><p>Time</p></td>
+</tr>
+<tr class="row-odd"><td class="text-center"><p><span class="math notranslate nohighlight">\(q\)</span></p></td>
+<td class="text-center"><p><span class="math notranslate nohighlight">\(\mathbb{C}\)</span></p></td>
+<td class="text-center"><p>Configuration</p></td>
+</tr>
+<tr class="row-even"><td class="text-center"><p><span class="math notranslate nohighlight">\(x = q\)</span></p></td>
+<td class="text-center"><p><span class="math notranslate nohighlight">\(\mathbb{C}\)</span></p></td>
+<td class="text-center"><p>State (may not equal configuration in general)</p></td>
+</tr>
+<tr class="row-odd"><td class="text-center"><p><span class="math notranslate nohighlight">\(v\)</span></p></td>
+<td class="text-center"><p><span class="math notranslate nohighlight">\(\mathbb{C}\)</span></p></td>
+<td class="text-center"><p>Velocity</p></td>
+</tr>
+<tr class="row-even"><td class="text-center"><p><span class="math notranslate nohighlight">\(o\)</span></p></td>
+<td class="text-center"><p></p></td>
+<td class="text-center"><p>Observation history</p></td>
+</tr>
+<tr class="row-odd"><td class="text-center"><p><span class="math notranslate nohighlight">\(v_\theta(x, t \mid o)\)</span></p></td>
+<td class="text-center"><p><span class="math notranslate nohighlight">\(\mathbb{C}\)</span></p></td>
+<td class="text-center"><p>Learned flow policy</p></td>
+</tr>
+<tr class="row-even"><td class="text-center"><p><span class="math notranslate nohighlight">\(\xi \sim \mathcal{D}\)</span></p></td>
+<td class="text-center"><p><span class="math notranslate nohighlight">\([0, 1] \rightarrow \mathbb{C}\)</span></p></td>
+<td class="text-center"><p>Random variable for demonstration trajectories</p></td>
+</tr>
+<tr class="row-odd"><td class="text-center"><p><span class="math notranslate nohighlight">\(\xi(t)\)</span></p></td>
+<td class="text-center"><p><span class="math notranslate nohighlight">\(\mathbb{C}\)</span></p></td>
+<td class="text-center"><p>Configuration in the demonstration at time <span class="math notranslate nohighlight">\(t\)</span></p></td>
+</tr>
+<tr class="row-even"><td class="text-center"><p><span class="math notranslate nohighlight">\(\dot{\xi}(t)\)</span></p></td>
+<td class="text-center"><p><span class="math notranslate nohighlight">\(\mathbb{C}\)</span></p></td>
+<td class="text-center"><p>Velocity in the demonstration at time <span class="math notranslate nohighlight">\(t\)</span></p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>In this notebook, <span class="math notranslate nohighlight">\(x \equiv q\)</span>.</p>
+<section id="hyperparameters">
+<h3>Hyperparameters<a class="headerlink" href="#hyperparameters" title="Link to this heading">#</a></h3>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head text-center"><p>Symbol</p></th>
+<th class="head text-center"><p>Space</p></th>
+<th class="head text-center"><p>Meaning</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td class="text-center"><p><span class="math notranslate nohighlight">\(\sigma_0\)</span></p></td>
+<td class="text-center"><p><span class="math notranslate nohighlight">\(\mathbb{R}_{\geq 0}\)</span></p></td>
+<td class="text-center"><p>Initial standard deviation</p></td>
+</tr>
+<tr class="row-odd"><td class="text-center"><p><span class="math notranslate nohighlight">\(k\)</span></p></td>
+<td class="text-center"><p><span class="math notranslate nohighlight">\(\mathbb{R}_{\geq 0}\)</span></p></td>
+<td class="text-center"><p>Stabilizing gain for the conditional flow</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+</section>
+<section id="conditional-flow">
+<h2>Conditional flow<a class="headerlink" href="#conditional-flow" title="Link to this heading">#</a></h2>
+<div class="cell docutils container">
+<div class="cell_input docutils container">
+<div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">fp</span> <span class="o">=</span> <span class="n">StreamingFlowPolicyCSpace</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">trajectories</span><span class="o">=</span><span class="p">[</span><span class="n">traj_right</span><span class="p">],</span> <span class="n">prior</span><span class="o">=</span><span class="p">[</span><span class="mf">1.0</span><span class="p">],</span> <span class="n">σ0</span><span class="o">=</span><span class="n">σ0</span><span class="p">,</span> <span class="n">k</span><span class="o">=</span><span class="n">k</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+<p>Given <span class="math notranslate nohighlight">\(\xi \sim \mathcal{D}\)</span> with associated observation history <span class="math notranslate nohighlight">\(o\)</span>, we will define a conditional flow field <span class="math notranslate nohighlight">\(v_\theta(x, t \mid o)\)</span> that must be learned.</p>
+<p>First, we sample the initial configuration <span class="math notranslate nohighlight">\(q_0\)</span> from a Gaussian centered at the initial configuration of the demonstration trajectory:</p>
+<div class="math notranslate nohighlight">
+\[
+q_0 \sim \mathcal{N}(\xi(0), \sigma_0^2)
+\]</div>
+<p>where <span class="math notranslate nohighlight">\(\sigma_0\)</span> is a small value. Then, the stabilizing velocity field is given by:</p>
+<div class="math notranslate nohighlight">
+\[
+\begin{align*}
+v(q, t \mid \xi) &amp;= \underbrace{-k(q - \xi(t))}_{\text{Stabilization term}} ~~+~~ \hspace{-1em}\underbrace{\dot{\xi}(t)}_{\text{Path velocity}}
+\end{align*}
+\]</div>
+<p>To solve for the actual flow, we must solve the following ordinary differential equation (ODE):</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}
+\begin{align*}
+\frac{\mathrm{d}q}{\mathrm{d}t} &amp;= -k(q - \xi(t)) + \dot{\xi}(t)\\
+\implies \frac{\mathrm{d}}{\mathrm{d}t} (q - \xi(t)) &amp;= -k(q - \xi(t))\\
+\implies q(t \mid \xi) &amp;= \xi(t) ~+~ \hspace{-1em}\underbrace{\left(q_0 - \xi(0)\right) e^{-kt}}_{\text{Error decays exponentially}}
+\end{align*}
+\end{split}\]</div>
+<p>Due to the stabilizing velocity field, the initial error <span class="math notranslate nohighlight">\((q_0 - \xi(0))\)</span> decays exponentially with time.</p>
+<p>Since <span class="math notranslate nohighlight">\(q(t \mid \xi)\)</span> is linear in <span class="math notranslate nohighlight">\(q_0\)</span>, the per-timestep marginal distribution of the conditional flow at any time <span class="math notranslate nohighlight">\(t\)</span> is a Gaussian:</p>
+<div class="math notranslate nohighlight">
+\[\mathbb{P}(q \mid t, \xi) = \mathcal{N} \left( q \,\big\vert\, \xi(t)\,,\, \sigma_0^2 e^{-2kt} \right)\]</div>
+</section>
+<section id="plot-conditional-probability-path-of-right-trajectory">
+<h2>Plot conditional probability path of right trajectory<a class="headerlink" href="#plot-conditional-probability-path-of-right-trajectory" title="Link to this heading">#</a></h2>
+<div class="cell docutils container">
+<div class="cell_input docutils container">
+<div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">fig</span><span class="p">,</span> <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="n">dpi</span><span class="o">=</span><span class="mi">120</span><span class="p">)</span>
+<span class="n">ts</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">200</span><span class="p">)</span>  <span class="c1"># (T,)</span>
+<span class="n">xs</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">200</span><span class="p">)</span>  <span class="c1"># (X,)</span>
+<span class="n">ts</span><span class="p">,</span> <span class="n">xs</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">meshgrid</span><span class="p">(</span><span class="n">ts</span><span class="p">,</span> <span class="n">xs</span><span class="p">,</span> <span class="n">indexing</span><span class="o">=</span><span class="s1">&#39;ij&#39;</span><span class="p">)</span>  <span class="c1"># (T, X)</span>
+<span class="n">plot_probability_density</span><span class="p">(</span><span class="n">fp</span><span class="p">,</span> <span class="n">ts</span><span class="p">,</span> <span class="n">xs</span><span class="p">,</span> <span class="n">ax</span><span class="p">)</span>
+<span class="c1"># plt.tight_layout()</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</pre></div>
+</div>
+</div>
+<div class="cell_output docutils container">
+<img alt="_images/861ce8f3aad87c8b2310768dff1063ebcb83afbac680c44a7343429dec41254a.png" src="_images/861ce8f3aad87c8b2310768dff1063ebcb83afbac680c44a7343429dec41254a.png" />
+</div>
+</div>
+</section>
+<section id="plot-conditional-vector-field-of-right-trajectory">
+<h2>Plot conditional vector field of right trajectory<a class="headerlink" href="#plot-conditional-vector-field-of-right-trajectory" title="Link to this heading">#</a></h2>
+<div class="cell docutils container">
+<div class="cell_input docutils container">
+<div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">fig</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">8</span><span class="p">,</span> <span class="mi">4</span><span class="p">),</span> <span class="n">dpi</span><span class="o">=</span><span class="mi">300</span><span class="p">)</span>
+<span class="n">gs</span> <span class="o">=</span> <span class="n">fig</span><span class="o">.</span><span class="n">add_gridspec</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="n">width_ratios</span><span class="o">=</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">])</span>
+<span class="n">ax1</span> <span class="o">=</span> <span class="n">fig</span><span class="o">.</span><span class="n">add_subplot</span><span class="p">(</span><span class="n">gs</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+<span class="n">ax2</span> <span class="o">=</span> <span class="n">fig</span><span class="o">.</span><span class="n">add_subplot</span><span class="p">(</span><span class="n">gs</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+<span class="n">im1</span> <span class="o">=</span> <span class="n">plot_probability_density_and_vector_field</span><span class="p">(</span><span class="n">fp</span><span class="p">,</span> <span class="n">ax1</span><span class="p">)</span>
+<span class="n">im2</span> <span class="o">=</span> <span class="n">plot_probability_density_and_streamlines</span><span class="p">(</span><span class="n">fp</span><span class="p">,</span> <span class="n">ax2</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">tight_layout</span><span class="p">()</span>  <span class="c1"># Uncommented to adjust spacing</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</pre></div>
+</div>
+</div>
+<div class="cell_output docutils container">
+<img alt="_images/99af4fafffe63c2044808bef72224d1e5cb8a31dede99f076ec7ca7b0ef01d5e.png" src="_images/99af4fafffe63c2044808bef72224d1e5cb8a31dede99f076ec7ca7b0ef01d5e.png" />
+</div>
+</div>
+</section>
+<section id="plot-trajectories-under-conditional-flow-of-right-trajectory">
+<h2>Plot trajectories under conditional flow of right trajectory<a class="headerlink" href="#plot-trajectories-under-conditional-flow-of-right-trajectory" title="Link to this heading">#</a></h2>
+<div class="cell docutils container">
+<div class="cell_input docutils container">
+<div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">fig</span><span class="p">,</span> <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">5</span><span class="p">,</span> <span class="mi">4</span><span class="p">),</span> <span class="n">dpi</span><span class="o">=</span><span class="mi">120</span><span class="p">)</span>
+<span class="n">im</span> <span class="o">=</span> <span class="n">plot_probability_density_with_trajectories</span><span class="p">(</span><span class="n">fp</span><span class="p">,</span> <span class="n">ax</span><span class="p">,</span> <span class="p">[</span><span class="kc">None</span><span class="p">]</span> <span class="o">*</span> <span class="mi">20</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</pre></div>
+</div>
+</div>
+<div class="cell_output docutils container">
+<img alt="_images/949591d365c358e1903bb4e2fda1d2bd3aa4e4f3aae059d0fecb5e52b01226dd.png" src="_images/949591d365c358e1903bb4e2fda1d2bd3aa4e4f3aae059d0fecb5e52b01226dd.png" />
+</div>
+</div>
+</section>
+<section id="marginal-flow">
+<h2>Marginal flow<a class="headerlink" href="#marginal-flow" title="Link to this heading">#</a></h2>
+<div class="cell docutils container">
+<div class="cell_input docutils container">
+<div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">fp</span> <span class="o">=</span> <span class="n">StreamingFlowPolicyCSpace</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">trajectories</span><span class="o">=</span><span class="p">[</span><span class="n">traj_right</span><span class="p">,</span> <span class="n">traj_left</span><span class="p">],</span> <span class="n">prior</span><span class="o">=</span><span class="p">[</span><span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">],</span> <span class="n">σ0</span><span class="o">=</span><span class="n">σ0</span><span class="p">,</span> <span class="n">k</span><span class="o">=</span><span class="n">k</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+</section>
+<section id="training">
+<h2>Training<a class="headerlink" href="#training" title="Link to this heading">#</a></h2>
+<p>Flow matching loss:</p>
+<div class="math notranslate nohighlight">
+\[
+\mathcal{L}_\mathrm{FM}(\theta, \mathcal{D}) = \mathbb{E}_{\xi \sim \mathcal{D},\ t,\ q \sim \mathcal{N}\left(\xi(t), \sigma^2\right)} \big\| v_\theta(q, t \mid o) - v(q, t \mid \xi) \big\|_2^2
+\]</div>
+<ol class="arabic simple">
+<li><p>Sample trajectory from dataset <span class="math notranslate nohighlight">\(\xi \sim \mathcal{D}\)</span>.</p></li>
+<li><p>Define conditional flow <span class="math notranslate nohighlight">\(v(q, t \mid \xi) = -k(q - \xi(t)) + \dot{\xi}(t)\)</span>.</p></li>
+<li><p>Sample <span class="math notranslate nohighlight">\(t \sim \text{Uniform}([0, 1])\)</span>.</p></li>
+<li><p>Sample <span class="math notranslate nohighlight">\(q \sim \mathcal{N} \left( q \,\big\vert\, \xi(t)\,,\, \sigma_0^2 e^{-2kt} \right)\)</span>.</p></li>
+<li><p>Compute L2 loss: <span class="math notranslate nohighlight">\(\| v_\theta(q, t \mid o) - v(q, t \mid \xi) \|_2^2\)</span>.</p></li>
+</ol>
+</section>
+<section id="flow-matching-theorem">
+<h2>Flow matching theorem<a class="headerlink" href="#flow-matching-theorem" title="Link to this heading">#</a></h2>
+<p>If <span class="math notranslate nohighlight">\(v^*(q, t \mid o)\)</span> is the optimal velocity field that minimizes the flow matching loss, then the marginal distributions <span class="math notranslate nohighlight">\(\mathbb{P}^*(q \mid t, o)\)</span> induced by <span class="math notranslate nohighlight">\(v^*\)</span> at <em>every</em> time <span class="math notranslate nohighlight">\(t\)</span> is the “average” of the conditional flow distributions <span class="math notranslate nohighlight">\(\mathbb{P}(q \mid t, \xi)\)</span> averaged over the training distribution.</p>
+<div class="math notranslate nohighlight">
+\[\mathbb{P}^*(q \mid t, o) = \mathbb{E}_{\xi} \left[ \mathbb{P}(q \mid t, \xi) \right], \ \forall q \in \mathbb{C}, \forall t \in [0, 1]\]</div>
+</section>
+<section id="plot-marginal-probability-path">
+<h2>Plot marginal probability path<a class="headerlink" href="#plot-marginal-probability-path" title="Link to this heading">#</a></h2>
+<div class="cell docutils container">
+<div class="cell_input docutils container">
+<div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">fig</span><span class="p">,</span> <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="n">dpi</span><span class="o">=</span><span class="mi">120</span><span class="p">)</span>
+<span class="n">ts</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">200</span><span class="p">)</span>  <span class="c1"># (T,)</span>
+<span class="n">xs</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">200</span><span class="p">)</span>  <span class="c1"># (X,)</span>
+<span class="n">ts</span><span class="p">,</span> <span class="n">xs</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">meshgrid</span><span class="p">(</span><span class="n">ts</span><span class="p">,</span> <span class="n">xs</span><span class="p">,</span> <span class="n">indexing</span><span class="o">=</span><span class="s1">&#39;ij&#39;</span><span class="p">)</span>  <span class="c1"># (T, X)</span>
+<span class="n">plot_probability_density</span><span class="p">(</span><span class="n">fp</span><span class="p">,</span> <span class="n">ts</span><span class="p">,</span> <span class="n">xs</span><span class="p">,</span> <span class="n">ax</span><span class="p">)</span>
+<span class="c1"># plt.tight_layout()</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</pre></div>
+</div>
+</div>
+<div class="cell_output docutils container">
+<img alt="_images/a19347bf7447b295f02d37a79ceb51a7bc76d1438f016dcdbc57c5be476625bc.png" src="_images/a19347bf7447b295f02d37a79ceb51a7bc76d1438f016dcdbc57c5be476625bc.png" />
+</div>
+</div>
+</section>
+<section id="plot-marginal-vector-field">
+<h2>Plot marginal vector field<a class="headerlink" href="#plot-marginal-vector-field" title="Link to this heading">#</a></h2>
+<div class="cell docutils container">
+<div class="cell_input docutils container">
+<div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">fig</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">8</span><span class="p">,</span> <span class="mi">4</span><span class="p">),</span> <span class="n">dpi</span><span class="o">=</span><span class="mi">300</span><span class="p">)</span>
+<span class="n">gs</span> <span class="o">=</span> <span class="n">fig</span><span class="o">.</span><span class="n">add_gridspec</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="n">width_ratios</span><span class="o">=</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">])</span>
+<span class="n">ax1</span> <span class="o">=</span> <span class="n">fig</span><span class="o">.</span><span class="n">add_subplot</span><span class="p">(</span><span class="n">gs</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+<span class="n">ax2</span> <span class="o">=</span> <span class="n">fig</span><span class="o">.</span><span class="n">add_subplot</span><span class="p">(</span><span class="n">gs</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+<span class="n">im1</span> <span class="o">=</span> <span class="n">plot_probability_density_and_vector_field</span><span class="p">(</span><span class="n">fp</span><span class="p">,</span> <span class="n">ax1</span><span class="p">)</span>
+<span class="n">im2</span> <span class="o">=</span> <span class="n">plot_probability_density_and_streamlines</span><span class="p">(</span><span class="n">fp</span><span class="p">,</span> <span class="n">ax2</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">tight_layout</span><span class="p">()</span>  <span class="c1"># Uncommented to adjust spacing</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</pre></div>
+</div>
+</div>
+<div class="cell_output docutils container">
+<img alt="_images/b91a3c3cbbc3485e8fead303a985ad6c1e37d0281eb6d05512d09e225c5fdf8c.png" src="_images/b91a3c3cbbc3485e8fead303a985ad6c1e37d0281eb6d05512d09e225c5fdf8c.png" />
+</div>
+</div>
+</section>
+<section id="plot-trajectories-under-marginal-flow">
+<h2>Plot trajectories under marginal flow<a class="headerlink" href="#plot-trajectories-under-marginal-flow" title="Link to this heading">#</a></h2>
+<div class="cell docutils container">
+<div class="cell_input docutils container">
+<div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">fig</span><span class="p">,</span> <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">5</span><span class="p">,</span> <span class="mi">4</span><span class="p">),</span> <span class="n">dpi</span><span class="o">=</span><span class="mi">120</span><span class="p">)</span>
+<span class="n">im</span> <span class="o">=</span> <span class="n">plot_probability_density_with_trajectories</span><span class="p">(</span><span class="n">fp</span><span class="p">,</span> <span class="n">ax</span><span class="p">,</span> <span class="p">[</span><span class="kc">None</span><span class="p">]</span> <span class="o">*</span> <span class="mi">20</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">tight_layout</span><span class="p">()</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</pre></div>
+</div>
+</div>
+<div class="cell_output docutils container">
+<img alt="_images/6497a651bc36c7bcae226172c15c8d22314fe59dacf2d832e2bebab0bfad8a9e.png" src="_images/6497a651bc36c7bcae226172c15c8d22314fe59dacf2d832e2bebab0bfad8a9e.png" />
+</div>
+</div>
+</section>
+<section id="pathology-when-starting-from-q-0">
+<h2>Pathology when starting from <span class="math notranslate nohighlight">\(q=0\)</span><a class="headerlink" href="#pathology-when-starting-from-q-0" title="Link to this heading">#</a></h2>
+<p>Let us compute the trajectory from the current configuration <span class="math notranslate nohighlight">\(q=0\)</span>.</p>
+<div class="cell docutils container">
+<div class="cell_input docutils container">
+<div class="highlight-ipython3 notranslate"><div class="highlight"><pre><span></span><span class="n">fig</span><span class="p">,</span> <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">5</span><span class="p">,</span> <span class="mi">4</span><span class="p">),</span> <span class="n">dpi</span><span class="o">=</span><span class="mi">120</span><span class="p">)</span>
+<span class="n">im</span> <span class="o">=</span> <span class="n">plot_probability_density_with_trajectories</span><span class="p">(</span><span class="n">fp</span><span class="p">,</span> <span class="n">ax</span><span class="p">,</span> <span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">linewidth</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">tight_layout</span><span class="p">()</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</pre></div>
+</div>
+</div>
+<div class="cell_output docutils container">
+<img alt="_images/31fb9aae84095ee90c23f5c1cd69941d4643c0f7c285668a02ddd89eec88492e.png" src="_images/31fb9aae84095ee90c23f5c1cd69941d4643c0f7c285668a02ddd89eec88492e.png" />
+</div>
+</div>
+<section id="explanation">
+<h3>Explanation<a class="headerlink" href="#explanation" title="Link to this heading">#</a></h3>
+<p>This is due to:</p>
+<ol class="arabic simple">
+<li><p>The flow being a deterministic. Which means that for a fixed starting point (i.e. initial configuration), the trajectory is fixed.</p></li>
+<li><p>In this particular example, the demonstration trajectories are symmetric. This causes the learned velocity field to be zero at <span class="math notranslate nohighlight">\(q=0\)</span> for all <span class="math notranslate nohighlight">\(t \in [0, 1]\)</span>. Therefor, the sampled trajectory is pathological.</p></li>
+</ol>
+<p>The sampled trajectory is not near the demonstration trajectories. Flow matching only guarantees that the marginal distribution of configurations is matched at each timestep. Note that the probability of exactly sampling the pathological trajectory is zero, so the flow matching guarantees are satisfied.</p>
+</section>
+</section>
+</section>
+
+    <script type="text/x-thebe-config">
+    {
+        requestKernel: true,
+        binderOptions: {
+            repo: "binder-examples/jupyter-stacks-datascience",
+            ref: "master",
+        },
+        codeMirrorConfig: {
+            theme: "abcdef",
+            mode: "python"
+        },
+        kernelOptions: {
+            name: "python3",
+            path: "./."
+        },
+        predefinedOutput: true
+    }
+    </script>
+    <script>kernelName = 'python3'</script>
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="index.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title"><b>Streaming flow policy</b>: Notebooks</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="ess-bifurcation.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Decoupling stochasticity via latent variables</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <div class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+  <div class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> Contents
+  </div>
+  <nav class="bd-toc-nav page-toc">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#set-hyperparameters">Set hyperparameters</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#plot-demonstration-trajectories">Plot demonstration trajectories</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#notation">Notation</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#hyperparameters">Hyperparameters</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#conditional-flow">Conditional flow</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#plot-conditional-probability-path-of-right-trajectory">Plot conditional probability path of right trajectory</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#plot-conditional-vector-field-of-right-trajectory">Plot conditional vector field of right trajectory</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#plot-trajectories-under-conditional-flow-of-right-trajectory">Plot trajectories under conditional flow of right trajectory</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#marginal-flow">Marginal flow</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#training">Training</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#flow-matching-theorem">Flow matching theorem</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#plot-marginal-probability-path">Plot marginal probability path</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#plot-marginal-vector-field">Plot marginal vector field</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#plot-trajectories-under-marginal-flow">Plot trajectories under marginal flow</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#pathology-when-starting-from-q-0">Pathology when starting from <span class="math notranslate nohighlight">\(q=0\)</span></a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#explanation">Explanation</a></li>
+</ul>
+</li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By Anonymous Authors
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2025.
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script src="_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b"></script>
+<script src="_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>
