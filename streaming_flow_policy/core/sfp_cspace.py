@@ -117,5 +117,5 @@ class StreamingFlowPolicyCSpace (StreamingFlowPolicyBase):
         ξ̇t = self.ξ̇t(traj, t)  # (*BS, X)
         k = self.k
 
-        v = -k * (qt - ξt) + ξ̇t  # (*BS, X)
+        v = ξ̇t - k * (qt - ξt)  # (*BS, X)
         return v
