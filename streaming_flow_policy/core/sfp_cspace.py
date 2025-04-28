@@ -5,10 +5,10 @@ from torch import Tensor
 
 from pydrake.all import Trajectory
 
-from streaming_flow_policy.toy.sfp_base import StreamingFlowPolicyBase
+from streaming_flow_policy.core.sfp_base import StreamingFlowPolicyBase
 
 
-class StreamingFlowPolicyDeterministic (StreamingFlowPolicyBase):
+class StreamingFlowPolicyCSpace (StreamingFlowPolicyBase):
     def __init__(
         self,
         trajectories: List[Trajectory],

@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import torch; torch.set_default_dtype(torch.double)
 from torch import Tensor
 
-from streaming_flow_policy.core.sfpl_base import StreamingFlowPolicyLatentBase
+from streaming_flow_policy.all import StreamingFlowPolicyLatentBase
 
 def plot_probability_density_q(
         fp: StreamingFlowPolicyLatentBase,

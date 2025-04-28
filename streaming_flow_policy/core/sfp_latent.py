@@ -5,7 +5,7 @@ from typing import List, Tuple
 
 from pydrake.all import Trajectory
 
-from streaming_flow_policy.core.sfpl_base import StreamingFlowPolicyLatentBase
+from .sfp_latent_base import StreamingFlowPolicyLatentBase
 
 
 class StreamingFlowPolicyLatent (StreamingFlowPolicyLatentBase):

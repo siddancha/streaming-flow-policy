@@ -4,10 +4,10 @@ import matplotlib.pyplot as plt
 import torch; torch.set_default_dtype(torch.double)
 from torch import Tensor
 
-from streaming_flow_policy.toy.sfpd import StreamingFlowPolicyDeterministic
+from streaming_flow_policy.all import StreamingFlowPolicyCSpace
 
 def plot_probability_density(
-        fp: StreamingFlowPolicyDeterministic,
+        fp: StreamingFlowPolicyCSpace,
         ts: Tensor,
         xs: Tensor,
         ax: plt.Axes,
@@ -17,7 +17,7 @@ def plot_probability_density(
     ):
     """
     Args:
-        fp (StreamingFlowPolicyDeterministic): Flow policy.
+        fp (StreamingFlowPolicyCSpace): Flow policy.
         ts (Tensor, dtype=float, shape=(T, X)): Time values in [0,1].
         xs (Tensor, dtype=float, shape=(T, X)): Configuration values.
         ax (plt.Axes): Axes to plot on.
@@ -41,7 +41,7 @@ def plot_probability_density(
     return ax.imshow(p, origin='lower', extent=extent, aspect=aspect, alpha=alpha)
 
 def plot_probability_density_and_vector_field(
-        fp: StreamingFlowPolicyDeterministic,
+        fp: StreamingFlowPolicyCSpace,
         ax: plt.Axes,
         num_points: int=200,
         num_quiver: int=20,
@@ -87,7 +87,7 @@ def plot_probability_density_and_vector_field(
     return heatmap
 
 def plot_probability_density_and_streamlines(
-        fp: StreamingFlowPolicyDeterministic,
+        fp: StreamingFlowPolicyCSpace,
         ax: plt.Axes,
         num_points: int=400,
     ):
@@ -128,7 +128,7 @@ def plot_probability_density_and_streamlines(
     return heatmap
 
 def plot_probability_density_with_trajectories(
-        fp: StreamingFlowPolicyDeterministic,
+        fp: StreamingFlowPolicyCSpace,
         ax: plt.Axes,
         x_starts: List[float | None],
         colors: List[str] | None = None,
