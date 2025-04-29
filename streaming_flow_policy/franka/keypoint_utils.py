@@ -10,13 +10,13 @@
 """
 
 """
+import os
 import cv2
 import tap
 import pickle
 import numpy as np
 import torch
-from matplotlib import pyplot as plt
-
+import matplotlib.pyplot as plt
 
 def load_data(file_name):
     with open(file_name, 'rb') as f:
@@ -65,15 +65,6 @@ class MaskPointPicker:
 
         self.seeding_point = []
         self.image = None
-
-    def get_seeding_point(self, rgb_image):
-        self.seeding_point = []
-        self.image = rgb_image
-        cv2.imshow('image', rgb_image[..., ::-1])
-        cv2.setMouseCallback('image', self.click_event)
-        cv2.waitKey(0)
-        cv2.destroyAllWindows()
-        return self.seeding_point
 
     def click_event(self, event, x, y, flags, param):
         if event == cv2.EVENT_LBUTTONDOWN:
@@ -128,7 +119,7 @@ class MaskPickerConfig(tap.Tap):
     MaskPickerConfig is used to configure the MaskPicker.
     """
     # path to the checkpoint of SAM model
-    sam2_ckpt_path: str = './sam2.1_hiera_large.pt'
+    sam2_ckpt_path: str = os.path.join(os.path.dirname(__file__), './sam2.1_hiera_large.pt')
     min_area_percentage: float = .0001
 
     device: str = 'cuda'

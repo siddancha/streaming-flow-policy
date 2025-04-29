@@ -64,7 +64,7 @@ def main(data_folder):
 
 
 if __name__ == '__main__':
-    main('../../../hat/data/real/drawer_250407/')
+    main('/home/xiaolinf/project/skill_learning/hat/data/real/drawer_250407/')
     # test_keypoint_selection()
 
 
