@@ -1,5 +1,6 @@
 data/
 outputs/
+saved_videos/
 
 # Mac
 .DS_Store

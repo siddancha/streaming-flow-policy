@@ -80,7 +80,7 @@ def main():
         tracked_keypoints_xy, tracked_keypoints_visibility = keypoint_tracker.track_offline(
             onetraj_rgb[1:], save_name=f'tracked_{os.path.basename(pkl_filename)[:-4]}'
         )
-        onetraj_keypoints_xy = np.concatenate((selected_keypoints[np.newaxis, ...], tracked_keypoints_xy))
+        onetraj_keypoints_xy = np.concatenate((selected_keypoints[np.newaxis, ...], tracked_keypoints_xy)) / crop_size # normalize to 0-1
         onetraj_keypoints_visibility = np.concatenate(
             (np.ones((1, selected_keypoints.shape[0]), dtype=bool), tracked_keypoints_visibility)
         )
