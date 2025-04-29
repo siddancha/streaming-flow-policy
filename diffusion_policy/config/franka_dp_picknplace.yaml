@@ -71,9 +71,9 @@ policy:
     beta_end: 0.02
     beta_schedule: squaredcos_cap_v2
     beta_start: 0.0001
-    clip_sample: true
+    clip_sample: false
     num_train_timesteps: 100
-    prediction_type: epsilon
+    prediction_type: sample
     variance_type: fixed_small
   num_inference_steps: 100
   obs_as_global_cond: true
