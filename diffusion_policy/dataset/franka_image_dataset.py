@@ -71,15 +71,15 @@ class FrankaPickImageDataset(BaseImageDataset):
         return len(self.sampler)
 
     def _sample_to_data(self, sample):
-        agent_pos = sample['state'].astype(np.float32) # (agent_posx2, block_posex3)
-        image = np.moveaxis(sample['img'],-1,1)/255
+        agent_pos = sample['state'].astype(np.float32)
+        image = np.moveaxis(sample['img'],-1,1)/255.
 
         data = {
             'obs': {
-                'image': image, # T, 3, 96, 96
-                'agent_pos': agent_pos, # T, 2
+                'image': image, # T, 3, 256, 256
+                'agent_pos': agent_pos, # T, 10
             },
-            'action': sample['action'].astype(np.float32) # T, 2
+            'action': sample['action'].astype(np.float32) # T, 10
         }
         return data
     
