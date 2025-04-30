@@ -15,7 +15,9 @@ import argparse
 import torch
 import hydra
 import dill
+import pickle
 import numpy as np
+import os.path as osp
 from diffusion_policy.convert_to_zarr import get_state, preprocess_rgb, center_crop
 from diffusion_policy.common.pytorch_util import dict_apply
 from diffusion_policy.workspace import BaseWorkspace
@@ -26,14 +28,27 @@ from diffusion_policy.hw_utils.rotation_utils import compute_rotation_matrix_fro
 
 CONTROL_FREQUENCY = 10 # Default 20 Hz
 
-def get_obs_dict(obs_im_buffer, action_buffer):
-    images = np.array([preprocess_rgb(center_crop(im)) for im in obs_im_buffer[-2:]])
-    image = np.moveaxis(images, -1, 1) / 255
+def get_obs_dict(obs_im_buffer, action_buffer, args, keypoint_tracker=None):
     robot_states_10d = np.stack([get_state(state).astype(np.float32) for state in action_buffer[-2:]])
-    obs_dict_np = {
-        'image': image,
-        'agent_pos': robot_states_10d,  # T, 10
-    }
+    if args.kp:
+        tracked_keypoints_xy, tracked_keypoints_visibility = keypoint_tracker.track_online(
+            np.array([preprocess_rgb(center_crop(im)) for im in obs_im_buffer[-keypoint_tracker.model.step*2:]])
+        )
+        tracked_keypoints_xy /= args.crop_size
+        obs_dict_np = {
+            'keypoint': torch.cat((
+                tracked_keypoints_visibility.astype(np.float32)[..., np.newaxis],
+                tracked_keypoints_xy.astype(np.float32)
+            ), axis=-1),
+            'agent_pos': robot_states_10d,  # T, 10
+        }
+    else:
+        images = np.array([preprocess_rgb(center_crop(im)) for im in obs_im_buffer[-2:]])
+        image = np.moveaxis(images, -1, 1) / 255
+        obs_dict_np = {
+            'image': image,
+            'agent_pos': robot_states_10d,  # T, 10
+        }
     return obs_dict_np
 
 
@@ -75,17 +90,40 @@ def main(args):
 
     camera_names = ['mount2']
     robot_interface = initialize_robot_interface(args.robot_ip)
+    if args.kp:
+        perception_interface = initialize_perception_interface()
+        keypoint_tracker = Tracker()
+    else:
+        keypoint_tracker = None
 
     cv2.namedWindow(camera_names[0], cv2.WINDOW_NORMAL)
-    rgb_im = robot_interface.capture_image()[0]
+    rgb_im, dep_im, intrinsics = robot_interface.capture_image()
     robot_state = robot_interface.get_current_joint_states()
     obs_im_buffer = [rgb_im, rgb_im]
     action_buffer = [robot_state, robot_state]
 
+    if args.kp:
+        with open(osp.join(osp.dirname(__file__), '../../beep-picknplace/', 'calibrations', 'camera_configs_latest.pkl'), 'rb') as f:
+            camera_configs = pickle.load(f)
+        extrinsics = camera_configs[camera_names[0]]['extrinsics']
+
+        rgbd_observation = RGBDObservation(
+            rgb_im, dep_im,
+            intrinsics, extrinsics
+        )
+        target_object_mask = perception_interface.get_object_mask(rgbd_observation, 'apple')
+        target_object_mask = cv2.erode(target_object_mask.astype(np.uint8), np.ones((5, 5), np.uint8), iterations=1).astype(bool)
+        valid_points_yx = np.argwhere(target_object_mask)
+        selected_keypoints_idx = np.random.choice(np.arange(valid_points_yx.shape[0]), size=args.keypoint_num, replace=False)
+        selected_keypoints_yx_ori_size = valid_points_yx[selected_keypoints_idx]
+        from diffusion_policy.convert_to_zarr import convert_scale
+        selected_keypoints = convert_scale(selected_keypoints_yx_ori_size, rgb_im.shape[:2], args.crop_size)[..., ::-1].copy()
+        keypoint_tracker.initialize(preprocess_rgb(rgb_im, args.crop_size), selected_keypoints)
+
     # dry run test
     with torch.no_grad():
         policy.reset()
-        obs_dict_np = get_obs_dict(obs_im_buffer, action_buffer)
+        obs_dict_np = get_obs_dict(obs_im_buffer, action_buffer, args, keypoint_tracker=keypoint_tracker)
         obs_dict = dict_apply(obs_dict_np, lambda x: torch.from_numpy(x).unsqueeze(0).to(device))
         result = policy.predict_action(obs_dict)
         action = result['action'][0].detach().to('cpu').numpy()
@@ -116,7 +154,7 @@ def main(args):
                     # run inference
                     with torch.no_grad():
                         s = time.time()
-                        obs_dict_np = get_obs_dict(obs_im_buffer, action_buffer)
+                        obs_dict_np = get_obs_dict(obs_im_buffer, action_buffer, args, keypoint_tracker=keypoint_tracker)
 
                         obs_dict = dict_apply(obs_dict_np, lambda x: torch.from_numpy(x).unsqueeze(0).to(device))
                         result = policy.predict_action(obs_dict)
@@ -165,5 +203,11 @@ if __name__ == '__main__':
     parser.add_argument('--ckpt_path', type=str, required=True, help='Path to the checkpoint file')
     parser.add_argument('--robot_ip', type=str, default=f'tcp://{os.environ["FR3_CONTROL_ADDR"]}:5560')
     parser.add_argument('--open_loop_horizon', type=int, default=8, help='Open loop horizon for action prediction')
+    parser.add_argument('--kp', action='store_true', help='use keypoint conditioned policy')
+    parser.add_argument('--keypoint_num', type=int, default=10, help='Number of keypoints to use in kp policy')
+    parser.add_argument('--crop_size', type=int, default=256, help='Resize target size')
     args = parser.parse_args()
+    if args.kp:
+        from streaming_flow_policy.franka.keypoint_tracker import Tracker
+        from beepp.perception import initialize_perception_interface, RGBDObservation
     main(args)
