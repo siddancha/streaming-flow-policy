@@ -58,11 +58,17 @@ class Tracker:
             image: the next image to track. H W C 0-255
         """
         self.history.append(image)
-        video = (torch.tensor(np.array(self.history[-2:])).permute(0, 3, 1, 2).unsqueeze(1).unsqueeze(0)
-                 .repeat(1, 1, self.model.step, 1, 1, 1)
-                 .reshape(1, self.model.step * 2, 3, *image.shape[:2]).float().to(self.device))  # B T C H W 0-255
+        if len(self.history) < self.model.step * 2:
+            video = (torch.tensor(np.array(self.history[:-1])).permute(0, 3, 1, 2).unsqueeze(1).unsqueeze(0)
+                     .repeat(1, 1, (self.model.step * 2) // len(self.history), 1, 1, 1)
+                     .reshape(1, (self.model.step * 2) // len(self.history) * len(self.history), 3, *image.shape[:2]))
+            video = torch.cat(
+                (video, torch.tensor(np.array(self.history[-1:])).permute(0, 3, 1, 2).unsqueeze(1).repeat(1, self.model_step * 2 - video.shape[1], 1,1,1)),
+                dim=1).float().to(self.device)  # B T C H W 0-255
+        else:
+            video = torch.tensor(np.array(self.history[-self.model.step*2:])).permute(0, 3, 1, 2).unsqueeze(0).float().to(self.device)  # B T C H W 0-255
         pred_tracks, pred_visibility = self.model(video)
-        tracked_keypoints_xy = pred_tracks[0, -1, :, :].cpu().numpy() # N 2
-        tracked_keypoints_visibility = pred_visibility[0, -1, :].cpu().numpy().astype(bool) # N
-        self.history.pop(0)
+        tracked_keypoints_xy = pred_tracks[0].cpu().numpy() # T N 2
+        tracked_keypoints_visibility = pred_visibility[0].cpu().numpy().astype(bool) # T N
+        # self.history.pop(0)
         return tracked_keypoints_xy, tracked_keypoints_visibility
