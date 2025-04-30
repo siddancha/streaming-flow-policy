@@ -33,9 +33,6 @@ logging:
   - train_diffusion_unet_hybrid
   - pusht_image
   - default
-#multi_run:
-#  run_dir: data/outputs/diffusion_policy_default
-#  wandb_name_base: diffusion_policy_default
 n_action_steps: 8
 n_latency_steps: 0
 n_obs_steps: 2
@@ -49,6 +46,8 @@ optimizer:
   lr: 0.0001
   weight_decay: 1.0e-06
 past_action_visible: false
+keypoint_featnpos_dim: 3
+use_3d_keypoint: false
 policy:
   _target_: diffusion_policy.policy.diffusion_unet_keypoint_policy.DiffusionUnetKeypointPolicy
   cond_predict_scale: true
@@ -56,6 +55,7 @@ policy:
   keypoint_num: 10
   keypoint_feat_dim: 1
   keypoint_emb_dim: 64
+  keypoint_featnpos_dim: ${keypoint_featnpos_dim}
   down_dims:
   - 512
   - 1024
@@ -89,7 +89,7 @@ policy:
         type: low_dim
       keypoint:
         shape:
-        - 3
+        - ${keypoint_featnpos_dim}
         type: rgb
       image: # Just for instantiating the robomimic model
         shape:
@@ -97,19 +97,19 @@ policy:
         - 256
         - 256
         type: rgb
-shape_meta:
-  action:
-    shape:
-    - 10
-  obs:
-    agent_pos:
-      shape:
-      - 10
-      type: low_dim
-    keypoint:
-      shape:
-      - 3
-      type: rgb
+#shape_meta:
+#  action:
+#    shape:
+#    - 10
+#  obs:
+#    agent_pos:
+#      shape:
+#      - 10
+#      type: low_dim
+#    keypoint:
+#      shape:
+#      - ${keypoint_featnpos_dim}
+#      type: rgb
 task:
   dataset:
     _target_: diffusion_policy.dataset.franka_keypoint_dataset.FrankaPickKeypointDataset
@@ -134,7 +134,7 @@ task:
         type: low_dim
       keypoint:
         shape:
-        - 3
+        - ${keypoint_featnpos_dim}
         type: rgb
 task_name: franka_picknplace
 training:
