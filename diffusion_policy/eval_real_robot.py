@@ -36,7 +36,7 @@ def get_obs_dict(obs_im_buffer, action_buffer, args, keypoint_tracker=None):
         )
         tracked_keypoints_xy /= args.crop_size
         obs_dict_np = {
-            'keypoint': torch.cat((
+            'keypoint': np.concatenate((
                 tracked_keypoints_visibility.astype(np.float32)[..., np.newaxis],
                 tracked_keypoints_xy.astype(np.float32)
             ), axis=-1),
@@ -172,9 +172,10 @@ def main(args):
                 actions_from_chunk_completed += 1
 
                 osc_pose_target = get_mat4_from_9d(action_10d[: 9])
-                if action_10d[-1].item() < 0.078 and action_10d[-1].item() < action_10d_prev[-1].item():
+                if action_10d[-1].item() < 0.075 and action_10d[-1].item() < action_10d_prev[-1].item():
                     closing_gripper = True
-                    # TODO: gripper open
+                elif action_10d[-1].item() > 0.075:# and action_10d[-1].item() > action_10d_prev[-1].item():
+                    closing_gripper = False
                 else:
                     closing_gripper = None
                 robot_interface.execute_cartesian_impedance_path(

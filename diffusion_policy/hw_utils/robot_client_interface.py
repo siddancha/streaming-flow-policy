@@ -176,6 +176,11 @@ class FrankaRealworldController(FrankaController):
         message = pickle.loads(zlib.decompress(self.socket.recv()))
         return message['rgb'], message['depth'], message['intrinsics'] # dep in m (not mm, no need to /1000)
 
+    def get_fixed_camera_extrinsic(self):
+        self.socket.send(zlib.compress(pickle.dumps({'message_name': 'get_fixed_camera_extrinsic'})))
+        message = pickle.loads(zlib.decompress(self.socket.recv()))
+        return message
+
     def execute_cartesian_impedance_path(
         self, poses, gripper_isclose: Optional[Union[np.ndarray, bool]] = None, speed_factor=1,
         is_capturing: bool = False, capture_step: int = 1
@@ -256,6 +261,6 @@ class FrankaRealworldController(FrankaController):
         return message['success']
 
 
-def initialize_robot_interface(robot_ip):
+def initialize_robot_interface(robot_ip) -> FrankaController:
     robot_interface = FrankaRealworldController(robot_ip)
     return robot_interface
