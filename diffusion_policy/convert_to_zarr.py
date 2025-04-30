@@ -43,12 +43,12 @@ def convert_scale(points_yx, original_hw, crop_size):
 
 def main():
     data_folder = '/data3/xiaolinf/franka_pick/'
-    zarr_save_path = 'data/franka_pick_kp.zarr'
+    zarr_save_path = 'data/franka_pick_kp3d.zarr'
     target_keypoints_num = 10
     crop_size = 256
     pkl_files = glob.glob(data_folder + 'pick_apple**.pkl')
     all_rgb, all_state, all_action, episode_end = [], [], [], []
-    all_keypoints_xy, all_keypoints_visibility = [], []
+    all_keypoints_ij, all_keypoints_xyz, all_keypoints_visibility = [], [], []
 
     perception_interface = initialize_perception_interface()
     keypoint_tracker = Tracker()
@@ -57,10 +57,15 @@ def main():
         print(f'Processing {pkl_filename}')
         raw_data = np.load(pkl_filename, allow_pickle=True)
         print(f'Data loaded. {len(raw_data["trajectory"])} steps')
-        onetraj_rgb, onetraj_state = [], []
+        onetraj_rgb, onetraj_pcd, onetraj_state = [], [], []
 
         for step in raw_data['trajectory']:
             onetraj_rgb.append(preprocess_rgb(step['mount2']['rgb'], crop_size))
+            pcd = RGBDObservation(
+                step['mount2']['rgb'], step['mount2']['depth'],
+                raw_data['camera_configs']['mount2']['intrinsics'], raw_data['camera_configs']['mount2']['extrinsics']
+            ).pcd_worldframe
+            onetraj_pcd.append(preprocess_rgb(pcd, crop_size))
 
         step0 = raw_data['trajectory'][0]
 
@@ -77,10 +82,20 @@ def main():
         selected_keypoints_yx_ori_size = valid_points_yx[selected_keypoints_idx]
         selected_keypoints = convert_scale(selected_keypoints_yx_ori_size, step['mount2']['rgb'].shape[:2], crop_size)[..., ::-1].copy()
         keypoint_tracker.initialize(init_im, selected_keypoints)
-        tracked_keypoints_xy, tracked_keypoints_visibility = keypoint_tracker.track_offline(
+        tracked_keypoints_ij, tracked_keypoints_visibility = keypoint_tracker.track_offline(
             onetraj_rgb[1:], save_name=f'tracked_{os.path.basename(pkl_filename)[:-4]}'
         )
-        onetraj_keypoints_xy = np.concatenate((selected_keypoints[np.newaxis, ...], tracked_keypoints_xy)) / crop_size # normalize to 0-1
+        onetraj_keypoints_ij = np.concatenate((selected_keypoints[np.newaxis, ...], tracked_keypoints_ij)) / crop_size # normalize to 0-1
+        onetraj_keypoints_xyz = np.stack(
+            [pcd[ij.astype(np.int64)[:, 1], ij.astype(np.int64)[:, 0]] for pcd, ij in zip(onetraj_pcd, onetraj_keypoints_ij * crop_size)]
+        )
+        # for pcd, kp_xyz in zip(onetraj_pcd, onetraj_keypoints_xyz):
+        #     pcd_vis = trimesh.points.PointCloud(pcd.reshape(-1, 3))
+        #     xyz_vis = trimesh.points.PointCloud(kp_xyz)
+        #     xyz_vis.colors = np.array([1., 0,0])
+        #     trimesh.Scene([pcd_vis, xyz_vis]).show()
+        # TODO: handle xyz == 0 cases
+        # NOTE: not necessary? If not zero mean, xyz == 0 is fine
         onetraj_keypoints_visibility = np.concatenate(
             (np.ones((1, selected_keypoints.shape[0]), dtype=bool), tracked_keypoints_visibility)
         )
@@ -88,16 +103,17 @@ def main():
         for step in raw_data['trajectory']:
             onetraj_state.append(get_state(step['robot']))
 
-        # TODO
+        # TODO: use next state for now. can be OSC cmd action.
         onetraj_action = onetraj_state[1:]
         onetraj_action.append(np.zeros(10))
 
         all_rgb.extend(onetraj_rgb)
-        all_keypoints_xy.append(onetraj_keypoints_xy)
+        all_keypoints_ij.append(onetraj_keypoints_ij)
+        all_keypoints_xyz.append(onetraj_keypoints_xyz)
         all_keypoints_visibility.append(onetraj_keypoints_visibility)
         all_state.extend(onetraj_state)
         all_action.extend(onetraj_action)
-        episode_end.append(len(all_rgb)) # TODO: double check
+        episode_end.append(len(all_rgb))
 
     store = zarr.DirectoryStore(zarr_save_path)
     root = zarr.group(store=store, overwrite=True)
@@ -106,7 +122,8 @@ def main():
     meta_group = root.create_group('meta')
     data_group.create_dataset('action', data=np.asarray(all_action).astype(np.float32))
     data_group.create_dataset('img', data=np.asarray(all_rgb))
-    data_group.create_dataset('keypoints_xy', data=np.concatenate(all_keypoints_xy))
+    data_group.create_dataset('keypoints_ij', data=np.concatenate(all_keypoints_ij))
+    data_group.create_dataset('keypoints_xyz', data=np.concatenate(all_keypoints_xyz))
     data_group.create_dataset('keypoints_visibility', data=np.concatenate(all_keypoints_visibility))
     data_group.create_dataset('state', data=np.asarray(all_state).astype(np.float32))
     meta_group.create_dataset('episode_ends', data=np.asarray(episode_end, dtype=np.int64))
