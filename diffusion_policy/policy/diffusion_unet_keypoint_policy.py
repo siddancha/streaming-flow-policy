@@ -21,7 +21,7 @@ from diffusion_policy.common.pytorch_util import dict_apply, replace_submodules
 
 
 class KpEncoder(robomimic.models.base_nets.Module):
-    def __init__(self, keypoint_pos_dim, in_dim, emb_dim, n_kp=8):
+    def __init__(self, keypoint_pos_dim, in_dim, emb_dim, n_kp=8, keypoint_squash_method='concat'):
         """
         Simple MLP stacks to encode keypoint features and positions.
         """
@@ -44,8 +44,12 @@ class KpEncoder(robomimic.models.base_nets.Module):
             nn.ReLU(),
             nn.Linear(emb_dim * 2, emb_dim),
         )
+        if keypoint_squash_method == 'concat':
+            multiply_factor = n_kp
+        else:
+            multiply_factor = 1
         self.out = nn.Sequential(
-            nn.Linear(emb_dim * n_kp, emb_dim),
+            nn.Linear(emb_dim * multiply_factor, emb_dim),
             nn.ReLU(),
             nn.Linear(emb_dim, emb_dim),
             nn.ReLU(),
@@ -54,14 +58,23 @@ class KpEncoder(robomimic.models.base_nets.Module):
         self.in_dim = in_dim
         self.emb_dim = emb_dim
         self.n_kp = n_kp
+        self.keypoint_squash_method = keypoint_squash_method
 
     def forward(self, kp_input):
         x_feat, x_pos = kp_input[..., :self.in_dim], kp_input[..., self.in_dim:]
         x_pos_emb = self.encode_posfirst(x_pos)
         x_feat = self.encode_feat(x_feat)
         concat_input = torch.cat((x_feat, x_pos_emb), dim=2)
-        out = self.encode_pos(concat_input).view(x_feat.shape[0], -1)
-        out = self.out(out)
+        out = self.encode_pos(concat_input) # B N D
+        if self.keypoint_squash_method == 'concat':
+            out = out.view(x_feat.shape[0], -1) # B ND
+            out = self.out(out)
+        elif self.keypoint_squash_method == 'mean':
+            out = out.mean(dim=1)
+        elif self.keypoint_squash_method == 'sum':
+            out = out.sum(dim=1)
+        else:
+            raise ValueError(f"Unsupported keypoint squash method {self.keypoint_squash_method}")
         return out
 
     def output_shape(self, input_shape=None):
@@ -84,6 +97,7 @@ class DiffusionUnetKeypointPolicy(BaseImagePolicy):
             n_groups=8,
             keypoint_num=8,
             keypoint_featnpos_dim=3,
+            keypoint_squash_method='concat',
             keypoint_feat_dim=2,
             keypoint_emb_dim=128,
             cond_predict_scale=True,
@@ -181,7 +195,8 @@ class DiffusionUnetKeypointPolicy(BaseImagePolicy):
             keypoint_pos_dim=keypoint_featnpos_dim-keypoint_feat_dim,
             in_dim=keypoint_feat_dim,
             emb_dim=keypoint_emb_dim,
-            n_kp=keypoint_num
+            n_kp=keypoint_num,
+            keypoint_squash_method=keypoint_squash_method
         )
 
         del obs_encoder.obs_shapes['image']
@@ -194,7 +209,7 @@ class DiffusionUnetKeypointPolicy(BaseImagePolicy):
         obs_encoder._locked = False # hack
         obs_encoder.register_obs_key(
             name='keypoint',
-            shape=(keypoint_num, 4),
+            shape=(keypoint_num, keypoint_featnpos_dim),
             net_class=None,
             net_kwargs=None,
             net=obs_kp_encoder,

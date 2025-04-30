@@ -26,7 +26,7 @@ logging:
   group: null
   id: null
   mode: online
-  name: diffusion_policy_franka_keypoint3d
+  name: 005_dp_kpnetworksum_keypoint3d
   project: diffusion_policy_sfp
   resume: true
   tags:
@@ -37,6 +37,7 @@ n_action_steps: 8
 n_latency_steps: 0
 n_obs_steps: 2
 name: train_diffusion_unet_hybrid
+task_name: franka_picknplace
 optimizer:
   _target_: torch.optim.AdamW
   betas:
@@ -56,6 +57,7 @@ policy:
   keypoint_feat_dim: 1
   keypoint_emb_dim: 64
   keypoint_featnpos_dim: ${keypoint_featnpos_dim}
+  keypoint_squash_method: sum
   down_dims:
   - 512
   - 1024
@@ -97,19 +99,6 @@ policy:
         - 256
         - 256
         type: rgb
-#shape_meta:
-#  action:
-#    shape:
-#    - 10
-#  obs:
-#    agent_pos:
-#      shape:
-#      - 10
-#      type: low_dim
-#    keypoint:
-#      shape:
-#      - ${keypoint_featnpos_dim}
-#      type: rgb
 task:
   dataset:
     _target_: diffusion_policy.dataset.franka_keypoint_dataset.FrankaPickKeypointDataset
@@ -123,7 +112,6 @@ task:
     use_3d_keypoint: ${use_3d_keypoint}
   image_shape:
   - 3
-  name: franka_pick_keypoint3d
   shape_meta:
     action:
       shape:
@@ -137,7 +125,6 @@ task:
         shape:
         - ${keypoint_featnpos_dim}
         type: rgb
-task_name: franka_picknplace
 training:
   checkpoint_every: 50
   debug: false
