@@ -1,3 +1,4 @@
+import random
 from typing import Dict
 import torch
 import numpy as np
@@ -7,7 +8,7 @@ from diffusion_policy.common.replay_buffer import ReplayBuffer
 from diffusion_policy.common.sampler import SequenceSampler, get_val_mask, downsample_mask
 from diffusion_policy.model.common.normalizer import LinearNormalizer
 from diffusion_policy.dataset.base_dataset import BaseImageDataset
-from diffusion_policy.common.normalize_util import get_image_range_normalizer
+from diffusion_policy.common.normalize_util import get_image_range_normalizer, get_identity_normalizer_from_stat, get_identity_normalizer
 
 class FrankaPickKeypointDataset(BaseImageDataset):
     def __init__(self,
@@ -17,13 +18,14 @@ class FrankaPickKeypointDataset(BaseImageDataset):
             pad_after=0,
             seed=42,
             val_ratio=0.0,
-            max_train_episodes=None
+            max_train_episodes=None,
+            use_3d_keypoint=True
             ):
         
         super().__init__()
         print(f'Loading FrankaImageDataset from {zarr_path}')
         self.replay_buffer = ReplayBuffer.copy_from_path(
-            zarr_path, keys=['keypoints_xy', 'keypoints_visibility', 'state', 'action'])
+            zarr_path, keys=['keypoints_ij', 'keypoints_xyz', 'keypoints_visibility', 'state', 'action'])
         val_mask = get_val_mask(
             n_episodes=self.replay_buffer.n_episodes, 
             val_ratio=val_ratio,
@@ -44,6 +46,7 @@ class FrankaPickKeypointDataset(BaseImageDataset):
         self.horizon = horizon
         self.pad_before = pad_before
         self.pad_after = pad_after
+        self.use_3d_keypoint = use_3d_keypoint
 
     def get_validation_dataset(self):
         val_set = copy.copy(self)
@@ -64,7 +67,8 @@ class FrankaPickKeypointDataset(BaseImageDataset):
         }
         normalizer = LinearNormalizer()
         normalizer.fit(data=data, last_n_dims=1, mode=mode, **kwargs)
-        normalizer['keypoint'] = get_image_range_normalizer()
+        # TODO identity okay?
+        normalizer['keypoint'] = get_identity_normalizer()
         return normalizer
 
     def __len__(self) -> int:
@@ -72,12 +76,23 @@ class FrankaPickKeypointDataset(BaseImageDataset):
 
     def _sample_to_data(self, sample):
         agent_pos = sample['state'].astype(np.float32)
-        keypoint_xy = sample['keypoints_xy'].astype(np.float32) # T, N, 2
+        if self.use_3d_keypoint:
+            keypoint_loc = sample['keypoints_xyz'].astype(np.float32) # T, N, 3
+        else:
+            keypoint_loc = sample['keypoints_ij'].astype(np.float32) # T, N, 2
         keypoint_visibility = sample['keypoints_visibility'].astype(np.float32)[..., np.newaxis] # T, N
+
+        # Data augmentation
+        idx_shuffle = np.arange(keypoint_loc.shape[1])
+        random.shuffle(idx_shuffle)
+        keypoint_loc = keypoint_loc[:, idx_shuffle] # T, N, 2
+        keypoint_visibility = keypoint_visibility[:, idx_shuffle]
+        noise_keypoint_loc = np.random.rand(*keypoint_loc.shape) * 0.05 - 0.025
+        keypoint_loc = keypoint_loc + noise_keypoint_loc
 
         data = {
             'obs': {
-                'keypoint': np.concatenate((keypoint_visibility, keypoint_xy), axis=-1), # T, 3
+                'keypoint': np.concatenate((keypoint_visibility, keypoint_loc), axis=-1), # T, 3 or T, 4
                 'agent_pos': agent_pos, # T, 10
             },
             'action': sample['action'].astype(np.float32) # T, 10

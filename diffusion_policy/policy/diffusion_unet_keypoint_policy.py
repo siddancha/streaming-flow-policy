@@ -21,13 +21,14 @@ from diffusion_policy.common.pytorch_util import dict_apply, replace_submodules
 
 
 class KpEncoder(robomimic.models.base_nets.Module):
-    def __init__(self, in_dim, emb_dim, n_kp=8):
+    def __init__(self, keypoint_pos_dim, in_dim, emb_dim, n_kp=8):
         """
         Simple MLP stacks to encode keypoint features and positions.
         """
         super().__init__()
+        # TODO: can also use sum or mean
         self.encode_posfirst = nn.Sequential(
-            nn.Linear(2, emb_dim),
+            nn.Linear(keypoint_pos_dim, emb_dim),
             nn.ReLU(),
             nn.Linear(emb_dim, emb_dim // 2)
         )
@@ -82,6 +83,7 @@ class DiffusionUnetKeypointPolicy(BaseImagePolicy):
             kernel_size=5,
             n_groups=8,
             keypoint_num=8,
+            keypoint_featnpos_dim=3,
             keypoint_feat_dim=2,
             keypoint_emb_dim=128,
             cond_predict_scale=True,
@@ -176,6 +178,7 @@ class DiffusionUnetKeypointPolicy(BaseImagePolicy):
 
         # replace image_encoder with a new one
         obs_kp_encoder = KpEncoder(
+            keypoint_pos_dim=keypoint_featnpos_dim-keypoint_feat_dim,
             in_dim=keypoint_feat_dim,
             emb_dim=keypoint_emb_dim,
             n_kp=keypoint_num

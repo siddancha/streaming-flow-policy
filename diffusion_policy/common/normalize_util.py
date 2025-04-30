@@ -35,6 +35,9 @@ def get_image_range_normalizer():
         input_stats_dict=stat
     )
 
+def get_identity_normalizer():
+    return SingleFieldLinearNormalizer.create_identity()
+
 def get_identity_normalizer_from_stat(stat):
     scale = np.ones_like(stat['min'])
     offset = np.zeros_like(stat['min'])
