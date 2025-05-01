@@ -18,6 +18,7 @@ import dill
 import pickle
 import numpy as np
 import os.path as osp
+from beepp.perception import initialize_perception_interface, RGBDObservation
 from diffusion_policy.convert_to_zarr import get_state, preprocess_rgb, center_crop
 from diffusion_policy.common.pytorch_util import dict_apply
 from diffusion_policy.workspace import BaseWorkspace
@@ -30,20 +31,30 @@ CONTROL_FREQUENCY = 10 # Default 20 Hz
 
 def get_obs_dict(obs_im_buffer, action_buffer, args, keypoint_tracker=None):
     robot_states_10d = np.stack([get_state(state).astype(np.float32) for state in action_buffer[-2:]])
-    if args.kp:
-        tracked_keypoints_xy, tracked_keypoints_visibility = keypoint_tracker.track_online(
-            np.array([preprocess_rgb(center_crop(im)) for im in obs_im_buffer[-keypoint_tracker.model.step*2:]])
+    if args.kp2d or args.kp3d:
+        # TODO: Keypoint tracker memory update & Async Inference
+        tracked_keypoints_ij, tracked_keypoints_visibility = keypoint_tracker.track_online(
+            preprocess_rgb(center_crop(obs_im_buffer[-1].rgb_im))
         )
-        tracked_keypoints_xy /= args.crop_size
+        tracked_keypoints_ij /= args.crop_size
+        if args.kp3d:
+            scene_pcd_worldframe = obs_im_buffer[-1].pcd_worldframe
+            tracked_keypoints_ij_scaled = (tracked_keypoints_ij * args.crop_size).astype(np.int64)
+            tracked_keypoints_loc = scene_pcd_worldframe[
+                tracked_keypoints_ij_scaled[:, 1], tracked_keypoints_ij_scaled[:, 0]
+            ]
+        else:
+            tracked_keypoints_loc = tracked_keypoints_ij
+
         obs_dict_np = {
             'keypoint': np.concatenate((
                 tracked_keypoints_visibility.astype(np.float32)[..., np.newaxis],
-                tracked_keypoints_xy.astype(np.float32)
+                tracked_keypoints_loc.astype(np.float32)
             ), axis=-1),
             'agent_pos': robot_states_10d,  # T, 10
         }
     else:
-        images = np.array([preprocess_rgb(center_crop(im)) for im in obs_im_buffer[-2:]])
+        images = np.array([preprocess_rgb(center_crop(obs.rgb_im)) for obs in obs_im_buffer[-2:]])
         image = np.moveaxis(images, -1, 1) / 255
         obs_dict_np = {
             'image': image,
@@ -90,11 +101,15 @@ def main(args):
 
     camera_names = ['mount2']
     robot_interface = initialize_robot_interface(args.robot_ip)
-    if args.kp:
+    if args.kp2d or args.kp3d:
         perception_interface = initialize_perception_interface()
         keypoint_tracker = Tracker()
     else:
         keypoint_tracker = None
+
+
+    extrinsics_allcameras = robot_interface.get_fixed_camera_extrinsic()
+    extrinsics = extrinsics_allcameras[camera_names[0]]
 
     cv2.namedWindow(camera_names[0], cv2.WINDOW_NORMAL)
     rgb_im, dep_im, intrinsics = robot_interface.capture_image()
@@ -102,16 +117,12 @@ def main(args):
     obs_im_buffer = [rgb_im, rgb_im]
     action_buffer = [robot_state, robot_state]
 
-    if args.kp:
-        with open(osp.join(osp.dirname(__file__), '../../beep-picknplace/', 'calibrations', 'camera_configs_latest.pkl'), 'rb') as f:
-            camera_configs = pickle.load(f)
-        extrinsics = camera_configs[camera_names[0]]['extrinsics']
-
-        rgbd_observation = RGBDObservation(
-            rgb_im, dep_im,
-            intrinsics, extrinsics
-        )
-        target_object_mask = perception_interface.get_object_mask(rgbd_observation, 'apple')
+    if args.kp2d or args.kp3d:
+        # extrinsics = np.array([[ 0.0024531 ,  0.55724814, -0.8303424 ,  1.11168072],
+        #    [ 0.99965826,  0.02024397,  0.01653918, -0.38456383],
+        #    [ 0.02602586, -0.83009921, -0.55700804,  0.3821937 ],
+        #    [ 0.        ,  0.        ,  0.        ,  1.        ]])
+        target_object_mask = perception_interface.get_object_mask(obs_im_buffer[-1], 'apple')
         target_object_mask = cv2.erode(target_object_mask.astype(np.uint8), np.ones((5, 5), np.uint8), iterations=1).astype(bool)
         valid_points_yx = np.argwhere(target_object_mask)
         selected_keypoints_idx = np.random.choice(np.arange(valid_points_yx.shape[0]), size=args.keypoint_num, replace=False)
@@ -204,11 +215,11 @@ if __name__ == '__main__':
     parser.add_argument('--ckpt_path', type=str, required=True, help='Path to the checkpoint file')
     parser.add_argument('--robot_ip', type=str, default=f'tcp://{os.environ["FR3_CONTROL_ADDR"]}:5560')
     parser.add_argument('--open_loop_horizon', type=int, default=8, help='Open loop horizon for action prediction')
-    parser.add_argument('--kp', action='store_true', help='use keypoint conditioned policy')
+    parser.add_argument('--kp2d', action='store_true', help='use keypoint 2d conditioned policy')
+    parser.add_argument('--kp3d', action='store_true', help='use keypoint 3d conditioned policy')
     parser.add_argument('--keypoint_num', type=int, default=10, help='Number of keypoints to use in kp policy')
     parser.add_argument('--crop_size', type=int, default=256, help='Resize target size')
     args = parser.parse_args()
-    if args.kp:
+    if args.kp2d or args.kp3d:
         from streaming_flow_policy.franka.keypoint_tracker import Tracker
-        from beepp.perception import initialize_perception_interface, RGBDObservation
     main(args)
