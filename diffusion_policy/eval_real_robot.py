@@ -114,7 +114,8 @@ def main(args):
     cv2.namedWindow(camera_names[0], cv2.WINDOW_NORMAL)
     rgb_im, dep_im, intrinsics = robot_interface.capture_image()
     robot_state = robot_interface.get_current_joint_states()
-    obs_im_buffer = [rgb_im, rgb_im]
+    rgbd_observation = RGBDObservation(rgb_im, dep_im, intrinsics, extrinsics)
+    obs_im_buffer: list[RGBDObservation] = [rgbd_observation, rgbd_observation]
     action_buffer = [robot_state, robot_state]
 
     if args.kp2d or args.kp3d:
@@ -154,8 +155,8 @@ def main(args):
             start_time = time.time()
             try:
                 # Get the current observation
-                obs_rgb = robot_interface.capture_image()[0]
-                obs_im_buffer.append(obs_rgb)
+                obs_rgb, obs_dep, obs_intrinsics = robot_interface.capture_image()
+                obs_im_buffer.append(RGBDObservation(obs_rgb, obs_dep, obs_intrinsics, extrinsics))
                 action_buffer.append(robot_interface.get_current_joint_states())
 
                 # Send websocket request to policy server if it's time to predict a new chunk
@@ -172,6 +173,7 @@ def main(args):
                         # this action starts from the first obs step
                         action_chunk = result['action'][0].detach().to('cpu').numpy()
                         print('Inference latency:', time.time() - s)
+                        print(action_chunk)
 
                     if action_10d_prev is None:
                         action_10d_prev = action_chunk[0]
@@ -201,7 +203,7 @@ def main(args):
                 if elapsed_time < 1 / CONTROL_FREQUENCY:
                     time.sleep(1 / CONTROL_FREQUENCY - elapsed_time)
 
-                cv2.imshow(camera_names[0], obs_im_buffer[-1][..., ::-1])
+                cv2.imshow(camera_names[0], obs_im_buffer[-1].rgb_im[..., ::-1])
                 cv2.waitKey(1)
 
             except KeyboardInterrupt:
