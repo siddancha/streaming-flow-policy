@@ -40,7 +40,7 @@ def get_fixed_camera_extrinsic(message):
     with open(osp.join(osp.dirname(__file__), 'calibrations', 'camera_configs_latest.pkl'), 'rb') as f:
         camera_configs = pickle.load(f)
     message = {
-        message['camera_name']: camera_configs[message['camera_name']]['extrinsics']
+        camera_name: camera_configs[camera_name]['extrinsics'] for camera_name in camera_configs
     }
     socket.send(zlib.compress(pickle.dumps(message)))
 
