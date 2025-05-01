@@ -36,16 +36,22 @@ def get_obs_dict(obs_im_buffer, action_buffer, args, keypoint_tracker=None):
         tracked_keypoints_ij, tracked_keypoints_visibility = keypoint_tracker.track_online(
             preprocess_rgb(center_crop(obs_im_buffer[-1].rgb_im))
         )
+        # TODO: double check the following code and 2d kp input
+        tracked_keypoints_ij = tracked_keypoints_ij[-2:]
+        tracked_keypoints_visibility = tracked_keypoints_visibility[-2:]
         tracked_keypoints_ij /= args.crop_size
         if args.kp3d:
-            scene_pcd_worldframe = obs_im_buffer[-1].pcd_worldframe
+            scene_pcds_worldframe = [preprocess_rgb(obs.pcd_worldframe, crop_size=args.crop_size) for obs in obs_im_buffer[-2:]]
             tracked_keypoints_ij_scaled = (tracked_keypoints_ij * args.crop_size).astype(np.int64)
-            tracked_keypoints_loc = scene_pcd_worldframe[
-                tracked_keypoints_ij_scaled[:, 1], tracked_keypoints_ij_scaled[:, 0]
-            ]
+            tracked_keypoints_loc = np.stack(
+                [pcd[ij[:, 1], ij[:, 0]] for pcd, ij in zip(scene_pcds_worldframe, tracked_keypoints_ij_scaled)]
+            )
         else:
             tracked_keypoints_loc = tracked_keypoints_ij
 
+        assert tracked_keypoints_loc.shape[0] == 2
+        assert tracked_keypoints_visibility.shape[0] == 2
+        ##########################################
         obs_dict_np = {
             'keypoint': np.concatenate((
                 tracked_keypoints_visibility.astype(np.float32)[..., np.newaxis],
@@ -143,6 +149,9 @@ def main(args):
         assert action.shape[-1] == 10
         del result
 
+    robot_interface.open_gripper()
+    robot_interface.open_gripper()
+    robot_interface.open_gripper()
 
     while True:
         # Rollout parameters
