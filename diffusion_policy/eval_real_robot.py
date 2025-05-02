@@ -28,8 +28,15 @@ from diffusion_policy.hw_utils.rotation_utils import compute_rotation_matrix_fro
 
 
 CONTROL_FREQUENCY = 10 # Default 20 Hz
+VERBOSE_TIME_PERF = False
 
 def get_obs_dict(obs_im_buffer, action_buffer, args, keypoint_tracker=None):
+    if VERBOSE_TIME_PERF:
+        global prev_obs_time
+        cur_obs_time = time.perf_counter()
+        if prev_obs_time is not None:
+            print(f'>>>> obs time elapse {cur_obs_time - prev_obs_time}')
+        prev_obs_time = cur_obs_time
     robot_states_10d = np.stack([get_state(state).astype(np.float32) for state in action_buffer[-2:]])
     if args.kp2d or args.kp3d:
         # TODO: Keypoint tracker memory update & Async Inference
@@ -179,9 +186,12 @@ def main(args):
             start_time = time.time()
             try:
                 # Get the current observation
+                st = time.time()
                 obs_rgb, obs_dep, obs_intrinsics = robot_interface.capture_image()
                 obs_im_buffer.append(RGBDObservation(obs_rgb, obs_dep, obs_intrinsics, extrinsics))
                 action_buffer.append(robot_interface.get_current_joint_states())
+                if VERBOSE_TIME_PERF:
+                    print(f'>>> Get Obs Time {time.time() - st}')
 
                 # Send websocket request to policy server if it's time to predict a new chunk
                 if actions_from_chunk_completed == 0 or actions_from_chunk_completed >= args.open_loop_horizon:
@@ -225,6 +235,8 @@ def main(args):
                 # Sleep to match data collection frequency
                 elapsed_time = time.time() - start_time
                 if elapsed_time < 1 / CONTROL_FREQUENCY:
+                    if VERBOSE_TIME_PERF:
+                        print(f'>>>>>>>> WAITING till elapsed go from {elapsed_time} to {1 / CONTROL_FREQUENCY}')
                     time.sleep(1 / CONTROL_FREQUENCY - elapsed_time)
 
                 # cv2.imshow(camera_names[0], obs_im_buffer[-1].rgb_im[..., ::-1])
@@ -249,4 +261,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
     if args.kp2d or args.kp3d:
         from streaming_flow_policy.franka.keypoint_tracker import Tracker
+    if VERBOSE_TIME_PERF:
+        global prev_obs_time
+        prev_obs_time = None
     main(args)
