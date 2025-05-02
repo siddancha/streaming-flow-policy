@@ -33,16 +33,19 @@ def get_obs_dict(obs_im_buffer, action_buffer, args, keypoint_tracker=None):
     robot_states_10d = np.stack([get_state(state).astype(np.float32) for state in action_buffer[-2:]])
     if args.kp2d or args.kp3d:
         # TODO: Keypoint tracker memory update & Async Inference
-        tracked_keypoints_ij, tracked_keypoints_visibility = keypoint_tracker.track_online(
-            preprocess_rgb(center_crop(obs_im_buffer[-1].rgb_im))
-        )
+        last_obs = preprocess_rgb(center_crop(obs_im_buffer[-1].rgb_im))
+        tracked_keypoints_ij, tracked_keypoints_visibility = keypoint_tracker.track_online(last_obs)
         # TODO: double check the following code and 2d kp input
         tracked_keypoints_ij = tracked_keypoints_ij[-2:]
         tracked_keypoints_visibility = tracked_keypoints_visibility[-2:]
         tracked_keypoints_ij /= args.crop_size
+
+        show_image_with_keypoints(last_obs, tracked_keypoints_ij[-1] * args.crop_size)
+
         if args.kp3d:
             scene_pcds_worldframe = [preprocess_rgb(obs.pcd_worldframe, crop_size=args.crop_size) for obs in obs_im_buffer[-2:]]
             tracked_keypoints_ij_scaled = (tracked_keypoints_ij * args.crop_size).astype(np.int64)
+            tracked_keypoints_ij_scaled[tracked_keypoints_ij_scaled == args.crop_size] = args.crop_size - 1
             tracked_keypoints_loc = np.stack(
                 [pcd[ij[:, 1], ij[:, 0]] for pcd, ij in zip(scene_pcds_worldframe, tracked_keypoints_ij_scaled)]
             )
@@ -67,6 +70,7 @@ def get_obs_dict(obs_im_buffer, action_buffer, args, keypoint_tracker=None):
             'image': image,
             'agent_pos': robot_states_10d,  # T, 10
         }
+        show_image_with_keypoints(images[-1], [])
     return obs_dict_np
 
 
@@ -78,6 +82,15 @@ def get_mat4_from_9d(ee_pose_9d):
     mat4[:3, :3] = compute_rotation_matrix_from_ortho6d(torch.from_numpy(rotation).unsqueeze(0)).numpy()[0]
     mat4[:3, 3] = translation
     return mat4
+
+
+def show_image_with_keypoints(im, keypoints_ij):
+    vis_im = im[..., ::-1].copy()
+    if len(keypoints_ij) > 0:
+        for kp_i, kp_j in keypoints_ij.astype(np.int64):
+            cv2.circle(vis_im, (kp_i, kp_j), 3, (0, 255, 0), -1)
+    cv2.imshow('mount2', vis_im)
+    cv2.waitKey(1)
 
 
 def main(args):
@@ -184,7 +197,7 @@ def main(args):
                         # this action starts from the first obs step
                         action_chunk = result['action'][0].detach().to('cpu').numpy()
                         print('Inference latency:', time.time() - s)
-                        print(action_chunk)
+                        # print(action_chunk)
 
                     if action_10d_prev is None:
                         action_10d_prev = action_chunk[0]
@@ -214,8 +227,8 @@ def main(args):
                 if elapsed_time < 1 / CONTROL_FREQUENCY:
                     time.sleep(1 / CONTROL_FREQUENCY - elapsed_time)
 
-                cv2.imshow(camera_names[0], obs_im_buffer[-1].rgb_im[..., ::-1])
-                cv2.waitKey(1)
+                # cv2.imshow(camera_names[0], obs_im_buffer[-1].rgb_im[..., ::-1])
+                # cv2.waitKey(1)
 
             except KeyboardInterrupt:
                 break
