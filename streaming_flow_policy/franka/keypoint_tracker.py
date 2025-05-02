@@ -61,9 +61,9 @@ class Tracker:
         if len(self.history) < self.model.step * 2:
             video = (torch.tensor(np.array(self.history[:-1])).permute(0, 3, 1, 2).unsqueeze(1).unsqueeze(0)
                      .repeat(1, 1, (self.model.step * 2) // len(self.history), 1, 1, 1)
-                     .reshape(1, (self.model.step * 2) // len(self.history) * len(self.history), 3, *image.shape[:2]))
+                     .reshape(1, (self.model.step * 2) // len(self.history) * len(self.history[:-1]), 3, *image.shape[:2]))
             video = torch.cat(
-                (video, torch.tensor(np.array(self.history[-1:])).permute(0, 3, 1, 2).unsqueeze(1).repeat(1, self.model_step * 2 - video.shape[1], 1,1,1)),
+                (video, torch.tensor(np.array(self.history[-1:])).permute(0, 3, 1, 2).unsqueeze(1).repeat(1, self.model.step * 2 - video.shape[1], 1,1,1)),
                 dim=1).float().to(self.device)  # B T C H W 0-255
         else:
             video = torch.tensor(np.array(self.history[-self.model.step*2:])).permute(0, 3, 1, 2).unsqueeze(0).float().to(self.device)  # B T C H W 0-255
