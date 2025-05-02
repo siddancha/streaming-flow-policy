@@ -26,7 +26,7 @@ logging:
   group: null
   id: null
   mode: online
-  name: 005_dp_kpnetworksum_keypoint3d
+  name: wandb_default
   project: diffusion_policy_sfp
   resume: true
   tags:
@@ -57,7 +57,7 @@ policy:
   keypoint_feat_dim: 1
   keypoint_emb_dim: 64
   keypoint_featnpos_dim: ${keypoint_featnpos_dim}
-  keypoint_squash_method: sum
+  keypoint_squash_method: concat
   down_dims:
   - 512
   - 1024
