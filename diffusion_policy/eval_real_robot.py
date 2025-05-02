@@ -52,6 +52,7 @@ def get_obs_dict(obs_im_buffer, action_buffer, args, keypoint_tracker=None):
         assert tracked_keypoints_loc.shape[0] == 2
         assert tracked_keypoints_visibility.shape[0] == 2
         ##########################################
+
         obs_dict_np = {
             'keypoint': np.concatenate((
                 tracked_keypoints_visibility.astype(np.float32)[..., np.newaxis],
@@ -106,7 +107,7 @@ def main(args):
         raise RuntimeError("Unsupported policy type: ", cfg.name)
 
     camera_names = ['mount2']
-    robot_interface = initialize_robot_interface(args.robot_ip)
+    robot_interface = initialize_robot_interface(args.robot_ip, local_rs=args.local_rs)
     if args.kp2d or args.kp3d:
         perception_interface = initialize_perception_interface()
         keypoint_tracker = Tracker()
@@ -137,6 +138,7 @@ def main(args):
         from diffusion_policy.convert_to_zarr import convert_scale
         selected_keypoints = convert_scale(selected_keypoints_yx_ori_size, rgb_im.shape[:2], args.crop_size)[..., ::-1].copy()
         keypoint_tracker.initialize(preprocess_rgb(rgb_im, args.crop_size), selected_keypoints)
+
 
     # dry run test
     with torch.no_grad():
@@ -230,6 +232,7 @@ if __name__ == '__main__':
     parser.add_argument('--kp3d', action='store_true', help='use keypoint 3d conditioned policy')
     parser.add_argument('--keypoint_num', type=int, default=10, help='Number of keypoints to use in kp policy')
     parser.add_argument('--crop_size', type=int, default=256, help='Resize target size')
+    parser.add_argument('--local_rs', action='store_true', help='RealSense connected to this machine directly')
     args = parser.parse_args()
     if args.kp2d or args.kp3d:
         from streaming_flow_policy.franka.keypoint_tracker import Tracker

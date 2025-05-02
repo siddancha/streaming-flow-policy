@@ -162,19 +162,27 @@ class FrankaPybulletController(FrankaController):
 
 
 class FrankaRealworldController(FrankaController):
-    def __init__(self, robot_ip):
+    def __init__(self, robot_ip, local_rs=False):
         context = zmq.Context()
         socket = context.socket(zmq.REQ)
         socket.connect(robot_ip)
         self.socket = socket
-        self.camera_intrinsics = None
-        self.image_dim = None
-        self.capture_rs = None
+        if local_rs:
+            target_camera_name = 'mount2'  # 'robot1_hand' #
+            from beepp.utils.rs_capture import get_realsense_capturer_dict
+            self.capture_rs = get_realsense_capturer_dict([target_camera_name], auto_close=True, skip_frames=35)[target_camera_name]
+        else:
+            self.capture_rs = None
+        self.local_rs = local_rs
 
     def capture_image(self):
-        self.socket.send(zlib.compress(pickle.dumps({'message_name': 'capture_realsense'})))
-        message = pickle.loads(zlib.decompress(self.socket.recv()))
-        return message['rgb'], message['depth'], message['intrinsics'] # dep in m (not mm, no need to /1000)
+        if self.local_rs:
+            (rgb, depth), intrinsics = self.capture_rs.capture(), self.capture_rs.intrinsics
+            return rgb, depth / 1000., intrinsics[0]
+        else:
+            self.socket.send(zlib.compress(pickle.dumps({'message_name': 'capture_realsense'})))
+            message = pickle.loads(zlib.decompress(self.socket.recv()))
+            return message['rgb'], message['depth'], message['intrinsics'] # dep in m (not mm, no need to /1000)
 
     def get_fixed_camera_extrinsic(self):
         self.socket.send(zlib.compress(pickle.dumps({'message_name': 'get_fixed_camera_extrinsic'})))
@@ -261,6 +269,6 @@ class FrankaRealworldController(FrankaController):
         return message['success']
 
 
-def initialize_robot_interface(robot_ip) -> FrankaController:
-    robot_interface = FrankaRealworldController(robot_ip)
+def initialize_robot_interface(robot_ip, local_rs=False) -> FrankaController:
+    robot_interface = FrankaRealworldController(robot_ip, local_rs)
     return robot_interface

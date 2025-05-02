@@ -237,13 +237,12 @@ def parse_args():
     parser.add_argument("--controller-type", type=str, default="OSC_POSE")
     parser.add_argument('--open', action='store_true', help="open the gripper")
     parser.add_argument('--reset', action='store_true')
+    parser.add_argument('--camera', action='store_true', help='Connected to camera.')
     args = parser.parse_args()
     return args
 
 
-def main():
-    args = parse_args()
-
+def main(args):
     global controller_type_osc, controller_cfg_osc
     global controller_type_imp, controller_cfg_imp
     global controller_type_free, controller_cfg_free
@@ -294,19 +293,22 @@ def main():
 
 if __name__ == '__main__':
     logger = get_deoxys_example_logger()
+    args = parse_args()
+
     robot_interface = get_franka_interface(robot_index=1, wait_for_state=True, auto_close=True)
     # robot_interface.set_open_gripper_width(0.06) # default gripper width
 
-    target_camera_name = 'mount2' # 'robot1_hand' #
-    capture_camera_names = [] #['mount2', 'mount1']
-    camera_list = [target_camera_name] + capture_camera_names
-    cameras = get_realsense_capturer_dict(camera_list, auto_close=True, skip_frames=35)
+    if args.camera:
+        target_camera_name = 'mount2'  # 'robot1_hand' #
+        capture_camera_names = [] #['mount2', 'mount1']
+        camera_list = [target_camera_name] + capture_camera_names
+        cameras = get_realsense_capturer_dict(camera_list, auto_close=True, skip_frames=35)
     save_traj = []
 
     while True:
         try:
             print('(Re) starting the server...')
-            main()
+            main(args)
         except:
             pass
         print('Server errored... Waiting for 2 seconds before restarting...')
