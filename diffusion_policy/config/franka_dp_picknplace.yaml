@@ -26,20 +26,18 @@ logging:
   group: null
   id: null
   mode: online
-  name: diffusion_policy_franka
-  project: diffusion_policy_debug
+  name: 011_franka_keypoint3d_datasetV3
+  project: diffusion_policy_sfp
   resume: true
   tags:
   - train_diffusion_unet_hybrid
   - pusht_image
   - default
-multi_run:
-  run_dir: data/outputs/diffusion_policy_default
-  wandb_name_base: diffusion_policy_default
 n_action_steps: 8
 n_latency_steps: 0
 n_obs_steps: 2
 name: train_diffusion_unet_hybrid
+task_name: franka_picknplace
 optimizer:
   _target_: torch.optim.AdamW
   betas:
@@ -117,7 +115,7 @@ task:
     pad_before: 1
     seed: 42
     val_ratio: 0.02
-    zarr_path: data/franka_pick.zarr
+    zarr_path: data/franka_pick_kp3d_v3.zarr
   image_shape:
   - 3
   - 256
@@ -138,7 +136,6 @@ task:
         - 256
         - 256
         type: rgb
-task_name: franka_picknplace
 training:
   checkpoint_every: 50
   debug: false
