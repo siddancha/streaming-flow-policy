@@ -69,6 +69,8 @@ class FrankaPickKeypointDataset(BaseImageDataset):
         normalizer.fit(data=data, last_n_dims=1, mode=mode, **kwargs)
         # TODO identity okay?
         normalizer['keypoint'] = get_identity_normalizer()
+        normalizer['action'] = get_identity_normalizer()
+        normalizer['agent_pos'] = get_identity_normalizer()
         return normalizer
 
     def __len__(self) -> int:
