@@ -28,17 +28,19 @@ from diffusion_policy.hw_utils.rotation_utils import compute_rotation_matrix_fro
 
 
 CONTROL_FREQUENCY = 10 # Default 20 Hz
-VERBOSE_TIME_PERF = False
+VERBOSE_TIME_PERF = True #False
+gripper_open_width = 0.079
 
 def get_obs_dict(obs_im_buffer, action_buffer, args, keypoint_tracker=None):
     if VERBOSE_TIME_PERF:
         global prev_obs_time
         cur_obs_time = time.perf_counter()
         if prev_obs_time is not None:
-            print(f'>>>> obs time elapse {cur_obs_time - prev_obs_time}')
+            print(f'>>>> Update traj time elapse {cur_obs_time - prev_obs_time}')
         prev_obs_time = cur_obs_time
     robot_states_10d = np.stack([get_state(state).astype(np.float32) for state in action_buffer[-2:]])
     if args.kp2d or args.kp3d:
+        st_tracking = time.perf_counter()
         # TODO: Keypoint tracker memory update & Async Inference
         last_obs = preprocess_rgb(center_crop(obs_im_buffer[-1].rgb_im))
         tracked_keypoints_ij, tracked_keypoints_visibility = keypoint_tracker.track_online(last_obs)
@@ -70,6 +72,8 @@ def get_obs_dict(obs_im_buffer, action_buffer, args, keypoint_tracker=None):
             ), axis=-1),
             'agent_pos': robot_states_10d,  # T, 10
         }
+        if VERBOSE_TIME_PERF:
+            print(f'>>>> keypoint tracking time elapse {time.perf_counter() - st_tracking}')
     else:
         images = np.array([preprocess_rgb(center_crop(obs.rgb_im)) for obs in obs_im_buffer[-2:]])
         image = np.moveaxis(images, -1, 1) / 255
@@ -139,6 +143,7 @@ def main(args):
         keypoint_tracker = None
 
 
+    robot_interface.go_to_home(gripper_open=True)
     extrinsics_allcameras = robot_interface.get_fixed_camera_extrinsic()
     extrinsics = extrinsics_allcameras[camera_names[0]]
 
@@ -175,27 +180,28 @@ def main(args):
         assert action.shape[-1] == 10
         del result
 
-    robot_interface.open_gripper()
-    robot_interface.open_gripper()
-    robot_interface.open_gripper()
-
     while True:
         # Rollout parameters
         actions_from_chunk_completed = 0
         pred_action_chunk_10d = None
         action_10d_prev = None
+        obs_time_prev = None
 
         # video = []
         for t_step in range(600):
             start_time = time.time()
             try:
                 # Get the current observation
-                st = time.time()
+                if VERBOSE_TIME_PERF:
+                    cur_obs_time = time.perf_counter()
+                    if obs_time_prev is not None:
+                        print(f'>>>> Update obs time elapse {cur_obs_time - obs_time_prev}')
+                    obs_time_prev = cur_obs_time
+
                 obs_rgb, obs_dep, obs_intrinsics = robot_interface.capture_image()
                 obs_im_buffer.append(RGBDObservation(obs_rgb, obs_dep, obs_intrinsics, extrinsics))
                 action_buffer.append(robot_interface.get_current_joint_states())
-                if VERBOSE_TIME_PERF:
-                    print(f'>>> Get Obs Time {time.time() - st}')
+                # Time elapse: 0.05 per if local_rs. 0.2 per if remote rs
 
                 # Send websocket request to policy server if it's time to predict a new chunk
                 if actions_from_chunk_completed == 0 or actions_from_chunk_completed >= args.open_loop_horizon:
@@ -223,12 +229,13 @@ def main(args):
                 actions_from_chunk_completed += 1
 
                 osc_pose_target = get_mat4_from_9d(action_10d[: 9])
-                if action_10d[-1].item() < 0.075 and action_10d[-1].item() < action_10d_prev[-1].item():
+                if action_10d[-1].item() < gripper_open_width and action_10d[-1].item() < action_10d_prev[-1].item():
                     closing_gripper = True
-                elif action_10d[-1].item() > 0.075:# and action_10d[-1].item() > action_10d_prev[-1].item():
+                elif action_10d[-1].item() > gripper_open_width:# and action_10d[-1].item() > action_10d_prev[-1].item():
                     closing_gripper = False
                 else:
                     closing_gripper = None
+
                 robot_interface.execute_cartesian_impedance_path(
                     [osc_pose_target],
                     gripper_isclose=closing_gripper,
@@ -236,7 +243,7 @@ def main(args):
 
                 action_10d_prev = action_10d
 
-                # Sleep to match data collection frequency
+                # Sleep to match data collection control frequency. Jittering if not.
                 elapsed_time = time.time() - start_time
                 if elapsed_time < 1 / CONTROL_FREQUENCY:
                     if VERBOSE_TIME_PERF:
