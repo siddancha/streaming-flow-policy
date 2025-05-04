@@ -188,6 +188,7 @@ def main(args):
         obs_time_prev = None
 
         # video = []
+        prev_action =  None
         for t_step in range(600):
             start_time = time.time()
             try:
@@ -213,8 +214,14 @@ def main(args):
                         obs_dict_np = get_obs_dict(obs_im_buffer, action_buffer, args, keypoint_tracker=keypoint_tracker)
 
                         obs_dict = dict_apply(obs_dict_np, lambda x: torch.from_numpy(x).unsqueeze(0).to(device))
-                        result = policy.predict_action(obs_dict)
+                        # result = policy.predict_action(obs_dict)
+                        if hasattr(policy, "use_action_traj") and policy.use_action_traj: # if policy has attribute use_action_traj and it is True
+                            result = policy.predict_action(obs_dict, prev_action=prev_action)
+                        else:
+                            result = policy.predict_action(obs_dict)
                         # this action starts from the first obs step
+                        if hasattr(policy, "use_action_traj") and policy.use_action_traj: 
+                            prev_action = result['prev_action']
                         action_chunk = result['action'][0].detach().to('cpu').numpy()
                         print('Inference latency:', time.time() - s)
                         # print(action_chunk)
