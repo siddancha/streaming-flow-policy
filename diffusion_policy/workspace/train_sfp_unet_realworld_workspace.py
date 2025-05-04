@@ -21,9 +21,7 @@ import numpy as np
 import shutil
 from diffusion_policy.workspace.base_workspace import BaseWorkspace
 from diffusion_policy.policy.sfp_unet_keypoint_policy import SFPUnetKeypointPolicy
-from diffusion_policy.policy.sft_unet_hybrid_image_policy import SFPUnetHybridImagePolicy
 from diffusion_policy.dataset.base_dataset import BaseImageDataset
-from diffusion_policy.env_runner.base_image_runner import BaseImageRunner
 from diffusion_policy.common.checkpoint_util import TopKCheckpointManager
 from diffusion_policy.common.json_logger import JsonLogger
 from diffusion_policy.common.pytorch_util import dict_apply, optimizer_to
