@@ -47,7 +47,7 @@ def get_obs_dict(obs_im_buffer, action_buffer, args, keypoint_tracker=None):
         tracked_keypoints_visibility = tracked_keypoints_visibility[-2:]
         tracked_keypoints_ij /= args.crop_size
 
-        show_image_with_keypoints(last_obs, tracked_keypoints_ij[-1] * args.crop_size)
+        show_image_with_keypoints(last_obs, tracked_keypoints_ij[-1] * args.crop_size, tracked_keypoints_visibility[-1])
 
         if args.kp3d:
             scene_pcds_worldframe = [preprocess_rgb(obs.pcd_worldframe, crop_size=args.crop_size) for obs in obs_im_buffer[-2:]]
@@ -77,7 +77,7 @@ def get_obs_dict(obs_im_buffer, action_buffer, args, keypoint_tracker=None):
             'image': image,
             'agent_pos': robot_states_10d,  # T, 10
         }
-        show_image_with_keypoints(images[-1], [])
+        show_image_with_keypoints(images[-1], [], [])
     return obs_dict_np
 
 
@@ -91,11 +91,15 @@ def get_mat4_from_9d(ee_pose_9d):
     return mat4
 
 
-def show_image_with_keypoints(im, keypoints_ij):
+def show_image_with_keypoints(im, keypoints_ij, keypoints_visibility):
     vis_im = im[..., ::-1].copy()
     if len(keypoints_ij) > 0:
-        for kp_i, kp_j in keypoints_ij.astype(np.int64):
-            cv2.circle(vis_im, (kp_i, kp_j), 3, (0, 255, 0), -1)
+        for i, (kp_i, kp_j) in enumerate(keypoints_ij.astype(np.int64)):
+            if keypoints_visibility[i]:
+                color = (0, 255, 0)
+            else:
+                color = (0, 0, 255)
+            cv2.circle(vis_im, (kp_i, kp_j), 3, color, -1)
     cv2.imshow('mount2', vis_im)
     cv2.waitKey(1)
 
