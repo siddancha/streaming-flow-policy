@@ -3,7 +3,36 @@ import torch.nn as nn
 import torch.nn.functional as F
 # from einops.layers.torch import Rearrange
 
+class LinearDownsample1d(nn.Module):
+    def __init__(self, dim):
+        super().__init__()
+        self.linear = nn.Linear(dim, dim)
 
+    def forward(self, x):
+        # Reshape input to (batch_size, -1) for fully connected layer
+        batch_size, channels, seq_len = x.size()
+        # print('downsample1d')
+        # print('input', x.size())
+        x = x.view(batch_size, -1)  # Flatten spatial dimensions
+        # print('flattened x', x.shape)
+        x = self.linear(x)
+        x = x.view(batch_size, channels, seq_len)  # Reshape back to original dimensions
+        # print('output', x.size())
+        return x
+
+class LinearUpsample1d(nn.Module):
+    def __init__(self, dim):
+        super().__init__()
+        self.linear = nn.Linear(dim, dim)
+
+    def forward(self, x):
+        # Reshape input to (batch_size, -1) for fully connected layer
+        batch_size, channels, seq_len = x.size()
+        x = x.view(batch_size, -1)  # Flatten spatial dimensions
+        x = self.linear(x)
+        x = x.view(batch_size, channels, seq_len)  # Reshape back to original dimensions
+        return x
+    
 class Downsample1d(nn.Module):
     def __init__(self, dim):
         super().__init__()

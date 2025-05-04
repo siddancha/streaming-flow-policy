@@ -6,7 +6,7 @@ import einops
 from einops.layers.torch import Rearrange
 
 from diffusion_policy.model.diffusion.conv1d_components import (
-    Downsample1d, Upsample1d, Conv1dBlock)
+    Downsample1d, Upsample1d, Conv1dBlock, LinearDownsample1d, LinearUpsample1d) #added
 from diffusion_policy.model.diffusion.positional_embedding import SinusoidalPosEmb
 
 logger = logging.getLogger(__name__)
@@ -75,7 +75,9 @@ class ConditionalUnet1D(nn.Module):
         down_dims=[256,512,1024],
         kernel_size=3,
         n_groups=8,
-        cond_predict_scale=False
+        cond_predict_scale=False,
+        sin_embedding_scale = 1, #added SFP
+        linear_updownsample = False, #added SFP
         ):
         super().__init__()
         all_dims = [input_dim] + list(down_dims)
@@ -83,7 +85,7 @@ class ConditionalUnet1D(nn.Module):
 
         dsed = diffusion_step_embed_dim
         diffusion_step_encoder = nn.Sequential(
-            SinusoidalPosEmb(dsed),
+            SinusoidalPosEmb(dsed, scale = sin_embedding_scale),
             nn.Linear(dsed, dsed * 4),
             nn.Mish(),
             nn.Linear(dsed * 4, dsed),
@@ -128,21 +130,28 @@ class ConditionalUnet1D(nn.Module):
         down_modules = nn.ModuleList([])
         for ind, (dim_in, dim_out) in enumerate(in_out):
             is_last = ind >= (len(in_out) - 1)
+            if linear_updownsample: 
+                dowmsample = LinearDownsample1d(dim_out) if not is_last else nn.Identity() #added
+            else:
+                dowmsample = Downsample1d(dim_out) if not is_last else nn.Identity()
             down_modules.append(nn.ModuleList([
                 ConditionalResidualBlock1D(
-                    dim_in, dim_out, cond_dim=cond_dim, 
+                    dim_in, dim_out, cond_dim=cond_dim,
                     kernel_size=kernel_size, n_groups=n_groups,
                     cond_predict_scale=cond_predict_scale),
                 ConditionalResidualBlock1D(
-                    dim_out, dim_out, cond_dim=cond_dim, 
+                    dim_out, dim_out, cond_dim=cond_dim,
                     kernel_size=kernel_size, n_groups=n_groups,
                     cond_predict_scale=cond_predict_scale),
-                Downsample1d(dim_out) if not is_last else nn.Identity()
+                    dowmsample
             ]))
-
         up_modules = nn.ModuleList([])
         for ind, (dim_in, dim_out) in enumerate(reversed(in_out[1:])):
             is_last = ind >= (len(in_out) - 1)
+            if linear_updownsample: 
+                upsample = LinearUpsample1d(dim_in) if not is_last  else nn.Identity()
+            else:
+                upsample = Upsample1d(dim_in) if not is_last  else nn.Identity()
             up_modules.append(nn.ModuleList([
                 ConditionalResidualBlock1D(
                     dim_out*2, dim_in, cond_dim=cond_dim,
@@ -152,7 +161,7 @@ class ConditionalUnet1D(nn.Module):
                     dim_in, dim_in, cond_dim=cond_dim,
                     kernel_size=kernel_size, n_groups=n_groups,
                     cond_predict_scale=cond_predict_scale),
-                Upsample1d(dim_in) if not is_last else nn.Identity()
+                    upsample
             ]))
         
         final_conv = nn.Sequential(
@@ -239,4 +248,3 @@ class ConditionalUnet1D(nn.Module):
 
         x = einops.rearrange(x, 'b t h -> b h t')
         return x
-
