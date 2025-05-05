@@ -4,7 +4,7 @@ checkpoint:
   save_last_snapshot: false
   topk:
     format_str: epoch={epoch:04d}-train_loss={train_loss:.3f}-val_loss={val_loss:.3f}.ckpt
-    k: 10
+    k: 5
     mode: min
     monitor_key: val_loss
 dataloader:
@@ -31,6 +31,7 @@ logging:
   resume: true
   tags: # changed
   - train_sfp_unet_hybrid
+  - sfp_image
   - realworld
   - piacknplace
   - default
@@ -51,7 +52,10 @@ past_action_visible: false
 keypoint_featnpos_dim: 4
 use_3d_keypoint: true
 policy:
-  _target_: diffusion_policy.policy.sfp_unet_keypoint_policy.SFPUnetKeypointPolicy
+  _target_: diffusion_policy.policy.sfp_unet_hybrid_image_policy.SFPUnetHybridImagePolicy
+  crop_shape: #added for image
+  - 224
+  - 224
   k: 0 #added
   use_action_traj: true #added
   robomimic: true #added
@@ -63,11 +67,6 @@ policy:
   biased_prob: 0.9 #added
   cond_predict_scale: true
   diffusion_step_embed_dim: 128
-  keypoint_num: 10
-  keypoint_feat_dim: 1
-  keypoint_emb_dim: 64
-  keypoint_featnpos_dim: ${keypoint_featnpos_dim}
-  keypoint_squash_method: concat
   down_dims:
   - 512
   - 1024
@@ -89,21 +88,31 @@ policy:
       agent_pos:
         shape:
         - 10
-        type: low_dim
-      keypoint:
-        shape:
-        - ${keypoint_featnpos_dim}
-        type: rgb
       image: # Just for instantiating the robomimic model
         shape:
         - 3
         - 256
         - 256
         type: rgb
+
+shape_meta:
+  action:
+    shape:
+    - 10
+  obs:
+    agent_pos:
+      shape:
+      - 10
+      type: low_dim
+    image:
+      shape:
+      - 3
+      - 256
+      - 256
+      type: rgb
 task:
   dataset:
-    _target_: diffusion_policy.dataset.franka_keypoint_dataset.FrankaPickKeypointDataset
-    all_identity_normalizer: false
+    _target_: diffusion_policy.dataset.franka_image_dataset.FrankaPickImageDataset
     horizon: 17
     max_train_episodes: 90
     pad_after: 7
@@ -111,7 +120,6 @@ task:
     seed: 42
     val_ratio: 0.02
     zarr_path: data/franka_pick_kp3d_v3.zarr
-    use_3d_keypoint: ${use_3d_keypoint}
   image_shape:
   - 3
   shape_meta:
@@ -123,10 +131,13 @@ task:
         shape:
         - 10
         type: low_dim
-      keypoint:
+      image:
         shape:
-        - ${keypoint_featnpos_dim}
+        - 3
+        - 256
+        - 256
         type: rgb
+    
 training:
   checkpoint_every: 50
   debug: false
@@ -144,7 +155,7 @@ training:
   seed: 42
   tqdm_interval_sec: 1.0
   use_ema: true
-  val_every: 1
+  val_every: 50
   x_t_sigma: 0.2 # added
 val_dataloader:
   batch_size: 64
