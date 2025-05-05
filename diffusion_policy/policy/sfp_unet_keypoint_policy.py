@@ -290,7 +290,7 @@ class SFPUnetKeypointPolicy(BaseImagePolicy):
                         pred_v[:, :, -1] = pred_v[:, :, -1] * self.gripper_normalize
                     prev_x = prev_x + pred_v * 1/(self.horizon * self.unit_int_steps) # [56, 1, 2]
                     ## TODO: check if the gripper is the in the last dim
-                    prev_x[:, :, -1] = prev_x[:, :, -1].clamp(-1.0, 1.0) # clamp the gripper value prev_x[0, :, -1] -> dim 2, -1 idx
+                    prev_x[:, :, -1] = prev_x[:, :, -1].clamp(0, 0.08) # clamp the gripper value prev_x[0, :, -1] -> dim 2, -1 idx
             traj = torch.stack(traj_list, dim=0)  
 
             return traj #[9, 56, 1, 2]
