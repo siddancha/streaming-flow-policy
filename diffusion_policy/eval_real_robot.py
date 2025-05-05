@@ -148,10 +148,8 @@ def main(args):
 
     cv2.namedWindow(camera_names[0], cv2.WINDOW_NORMAL)
     rgb_im, dep_im, intrinsics = robot_interface.capture_image()
-    robot_state = robot_interface.get_current_joint_states()
     rgbd_observation = RGBDObservation(rgb_im, dep_im, intrinsics, extrinsics)
     obs_im_buffer: list[RGBDObservation] = [rgbd_observation, rgbd_observation]
-    action_buffer = [robot_state, robot_state]
 
     if args.kp2d or args.kp3d:
         # extrinsics = np.array([[ 0.0024531 ,  0.55724814, -0.8303424 ,  1.11168072],
@@ -167,6 +165,8 @@ def main(args):
         selected_keypoints = convert_scale(selected_keypoints_yx_ori_size, rgb_im.shape[:2], args.crop_size)[..., ::-1].copy()
         keypoint_tracker.initialize(preprocess_rgb(rgb_im, args.crop_size), selected_keypoints)
 
+    robot_state = robot_interface.get_current_joint_states()
+    action_buffer = [robot_state, robot_state]
 
     # dry run test
     with torch.no_grad():
@@ -179,88 +179,89 @@ def main(args):
         assert action.shape[-1] == 10
         del result
 
+    # Rollout parameters
+    actions_from_chunk_completed = 0
+    pred_action_chunk_10d = None
+    action_10d_prev = None
+    obs_time_prev = None
+
+    # video = []
+    prev_action =  None
     while True:
-        # Rollout parameters
-        actions_from_chunk_completed = 0
-        pred_action_chunk_10d = None
-        action_10d_prev = None
-        obs_time_prev = None
+        start_time = time.time()
+        try:
+            # Get the current observation
+            if VERBOSE_TIME_PERF:
+                cur_obs_time = time.perf_counter()
+                if obs_time_prev is not None:
+                    print(f'>>>> Update obs time elapse {cur_obs_time - obs_time_prev}')
+                obs_time_prev = cur_obs_time
 
-        # video = []
-        prev_action =  None
-        for t_step in range(600):
-            start_time = time.time()
-            try:
-                # Get the current observation
-                if VERBOSE_TIME_PERF:
-                    cur_obs_time = time.perf_counter()
-                    if obs_time_prev is not None:
-                        print(f'>>>> Update obs time elapse {cur_obs_time - obs_time_prev}')
-                    obs_time_prev = cur_obs_time
+            obs_rgb, obs_dep, obs_intrinsics = robot_interface.capture_image()
+            obs_im_buffer.append(RGBDObservation(obs_rgb, obs_dep, obs_intrinsics, extrinsics))
+            action_buffer.append(robot_interface.get_current_joint_states())
+            # Time elapse: 0.05 per if local_rs. 0.2 per if remote rs
 
-                obs_rgb, obs_dep, obs_intrinsics = robot_interface.capture_image()
-                obs_im_buffer.append(RGBDObservation(obs_rgb, obs_dep, obs_intrinsics, extrinsics))
-                action_buffer.append(robot_interface.get_current_joint_states())
-                # Time elapse: 0.05 per if local_rs. 0.2 per if remote rs
+            # Send websocket request to policy server if it's time to predict a new chunk
+            if actions_from_chunk_completed == 0 or actions_from_chunk_completed >= args.open_loop_horizon:
+                actions_from_chunk_completed = 0
 
-                # Send websocket request to policy server if it's time to predict a new chunk
-                if actions_from_chunk_completed == 0 or actions_from_chunk_completed >= args.open_loop_horizon:
-                    actions_from_chunk_completed = 0
+                # run inference
+                with torch.no_grad():
+                    s = time.time()
+                    obs_dict_np = get_obs_dict(obs_im_buffer, action_buffer, args, keypoint_tracker=keypoint_tracker)
 
-                    # run inference
-                    with torch.no_grad():
-                        s = time.time()
-                        obs_dict_np = get_obs_dict(obs_im_buffer, action_buffer, args, keypoint_tracker=keypoint_tracker)
+                    obs_dict = dict_apply(obs_dict_np, lambda x: torch.from_numpy(x).unsqueeze(0).to(device))
+                    # result = policy.predict_action(obs_dict)
+                    if hasattr(policy, "use_action_traj") and policy.use_action_traj: # if policy has attribute use_action_traj and it is True
+                        result = policy.predict_action(obs_dict, prev_action=prev_action)
+                    else:
+                        result = policy.predict_action(obs_dict)
+                    # this action starts from the first obs step
+                    if hasattr(policy, "use_action_traj") and policy.use_action_traj:
+                        prev_action = result['prev_action']
+                    action_chunk = result['action'][0].detach().to('cpu').numpy()
+                    print('Inference latency:', time.time() - s)
+                    # print(action_chunk)
 
-                        obs_dict = dict_apply(obs_dict_np, lambda x: torch.from_numpy(x).unsqueeze(0).to(device))
-                        # result = policy.predict_action(obs_dict)
-                        if hasattr(policy, "use_action_traj") and policy.use_action_traj: # if policy has attribute use_action_traj and it is True
-                            result = policy.predict_action(obs_dict, prev_action=prev_action)
-                        else:
-                            result = policy.predict_action(obs_dict)
-                        # this action starts from the first obs step
-                        if hasattr(policy, "use_action_traj") and policy.use_action_traj:
-                            prev_action = result['prev_action']
-                        action_chunk = result['action'][0].detach().to('cpu').numpy()
-                        print('Inference latency:', time.time() - s)
-                        # print(action_chunk)
+                if action_10d_prev is None:
+                    action_10d_prev = action_chunk[0]
+                # convert policy action to env actions
+                pred_action_chunk_10d = action_chunk
 
-                    if action_10d_prev is None:
-                        action_10d_prev = action_chunk[0]
-                    # convert policy action to env actions
-                    pred_action_chunk_10d = action_chunk
-
-                # Select current action to execute from chunk
-                action_10d = pred_action_chunk_10d[actions_from_chunk_completed]
-                actions_from_chunk_completed += 1
-
-                osc_pose_target = get_mat4_from_9d(action_10d[: 9])
-                if action_10d[-1].item() < gripper_open_width and action_10d[-1].item() < action_10d_prev[-1].item():
-                    closing_gripper = True
-                elif action_10d[-1].item() > gripper_open_width:# and action_10d[-1].item() > action_10d_prev[-1].item():
-                    closing_gripper = False
-                else:
-                    closing_gripper = None
-
-                robot_interface.execute_cartesian_impedance_path(
-                    [osc_pose_target],
-                    gripper_isclose=closing_gripper,
-                )
-
-                action_10d_prev = action_10d
-
-                # Sleep to match data collection control frequency. Jittering if not.
-                elapsed_time = time.time() - start_time
-                if elapsed_time < 1 / CONTROL_FREQUENCY:
-                    if VERBOSE_TIME_PERF:
-                        print(f'>>>>>>>> WAITING till elapsed go from {elapsed_time} to {1 / CONTROL_FREQUENCY}')
-                    time.sleep(1 / CONTROL_FREQUENCY - elapsed_time)
-
-                # cv2.imshow(camera_names[0], obs_im_buffer[-1].rgb_im[..., ::-1])
-                # cv2.waitKey(1)
-
-            except KeyboardInterrupt:
+            # Select current action to execute from chunk
+            action_10d = pred_action_chunk_10d[actions_from_chunk_completed]
+            if np.allclose(action_10d[:-1], 0, atol=0.03):
                 break
+            actions_from_chunk_completed += 1
+
+            osc_pose_target = get_mat4_from_9d(action_10d[: 9])
+            if action_10d[-1].item() < gripper_open_width and action_10d[-1].item() < action_10d_prev[-1].item():
+                closing_gripper = True
+            elif action_10d[-1].item() > gripper_open_width and action_10d[-1].item() > action_10d_prev[-1].item():
+                closing_gripper = False
+            else:
+                closing_gripper = None
+
+            robot_interface.execute_cartesian_impedance_path(
+                [osc_pose_target],
+                gripper_isclose=closing_gripper,
+            )
+
+            action_10d_prev = action_10d
+
+            # Sleep to match data collection control frequency. Jittering if not.
+            elapsed_time = time.time() - start_time
+            if elapsed_time < 1 / CONTROL_FREQUENCY:
+                if VERBOSE_TIME_PERF:
+                    print(f'>>>>>>>> WAITING till elapsed go from {elapsed_time} to {1 / CONTROL_FREQUENCY}')
+                time.sleep(1 / CONTROL_FREQUENCY - elapsed_time)
+
+            # cv2.imshow(camera_names[0], obs_im_buffer[-1].rgb_im[..., ::-1])
+            # cv2.waitKey(1)
+
+        except KeyboardInterrupt:
+            break
 
     cv2.destroyWindow(camera_names[0])
 
