@@ -125,10 +125,6 @@ def main(args):
 
         device = torch.device('cuda')
         policy.eval().to(device)
-
-        # set inference params
-        policy.num_inference_steps = 16 # DDIM inference iterations
-        policy.n_action_steps = policy.horizon - policy.n_obs_steps + 1
     else:
         raise RuntimeError("Unsupported policy type: ", cfg.name)
 
@@ -218,7 +214,7 @@ def main(args):
                         else:
                             result = policy.predict_action(obs_dict)
                         # this action starts from the first obs step
-                        if hasattr(policy, "use_action_traj") and policy.use_action_traj: 
+                        if hasattr(policy, "use_action_traj") and policy.use_action_traj:
                             prev_action = result['prev_action']
                         action_chunk = result['action'][0].detach().to('cpu').numpy()
                         print('Inference latency:', time.time() - s)
