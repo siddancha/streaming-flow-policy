@@ -82,7 +82,7 @@ def main():
         print(f'Processing {pkl_filename}')
         raw_data = np.load(pkl_filename, allow_pickle=True)
         print(f'Data loaded. {len(raw_data["trajectory"])} steps')
-        onetraj_rgb, onetraj_pcd, onetraj_state = [], [], []
+        onetraj_rgb, onetraj_pcd, onetraj_state_v1 = [], [], []
 
         for step in raw_data['trajectory']:
             onetraj_rgb.append(preprocess_rgb(step['mount2']['rgb'], crop_size))
@@ -121,9 +121,25 @@ def main():
         for step in raw_data['trajectory']:
             onetraj_state.append(get_state(step['robot']))
 
-        # TODO: use next state for now. can be OSC cmd action.
-        onetraj_action = onetraj_state[1:]
-        onetraj_action.append(np.zeros(10))
+        onetrajs_state = [onetraj_state_v1]
+        # HACK: Data augmentation. Gripper start with 0 if 'failure recovery' traj
+        if onetraj_state_v1[0][2] < 0.15:
+            # start with z < 0.15 -- recover from failure
+            for _ in range(3):
+                onetraj_state_v2 = onetraj_state_v1.copy()
+                onetraj_state_v2[0][-1] = 0.0
+                for traj_step_i in range(1, 5):
+                    onetraj_state_v2[traj_step_i][-1] = onetraj_state_v2[traj_step_i - 1][-1] + np.random.rand() * 0.03
+                    if onetraj_state_v2[traj_step_i][-1] > 0.08:
+                        onetraj_state_v2[traj_step_i][-1] = 0.08
+                        break
+                onetrajs_state.append(onetraj_state_v2)
+
+        print(f'{len(onetrajs_state)} variants')
+        for onetraj_state in onetrajs_state:
+            # TODO: use next state for now. can be OSC cmd action.
+            onetraj_action = onetraj_state[1:]
+            onetraj_action.append(np.zeros(10))
 
             if vis:
                 # import trimesh
