@@ -132,14 +132,14 @@ def get_x_v_o(traj_array, T, t):
 
     return x_t, v_t
 
-# def get_x_v_fast(x_seq, T, t, device):
-    # x_seq: B, seq_len, action_dim -> seq_len, B, action_dim
-    x_seq_np = x_seq.permute(1, 0, 2).detach().cpu().numpy()
-    time = np.linspace(0, 1, T + 1)
-    trajectory = PiecewisePolynomial.FirstOrderHold(time, x_seq_np)
-    x_t = trajectory.value(t) #get_x_t(trajectory, t)
-    v_t = trajectory.EvalDerivative(t)  #get_v_t(trajectory, t)
-    return torch.from_numpy(x_t).to(device), torch.from_numpy(v_t).to(device)
+# # def get_x_v_fast(x_seq, T, t, device):
+#     # x_seq: B, seq_len, action_dim -> seq_len, B, action_dim
+#     x_seq_np = x_seq.permute(1, 0, 2).detach().cpu().numpy()
+#     time = np.linspace(0, 1, T + 1)
+#     trajectory = PiecewisePolynomial.FirstOrderHold(time, x_seq_np)
+#     x_t = trajectory.value(t) #get_x_t(trajectory, t)
+#     v_t = trajectory.EvalDerivative(t)  #get_v_t(trajectory, t)
+#     return torch.from_numpy(x_t).to(device), torch.from_numpy(v_t).to(device)
 
 def biased_sample(x_seq, t, T, prob=0.9):
     B, seq_len, _ = x_seq.shape
