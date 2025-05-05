@@ -17,18 +17,81 @@ import robomimic.utils.obs_utils as ObsUtils
 import robomimic.models.base_nets as rmbn
 import diffusion_policy.model.vision.crop_randomizer as dmvc
 from diffusion_policy.common.pytorch_util import dict_apply, replace_submodules
-
+import robomimic
 # added
 import numpy as np
 
 # keypoint policy
-from diffusion_policy.model.vision.kpencoder import KpEncoder
+# from diffusion_policy.model.vision.kpencoder import KpEncoder
+
+
+class KpEncoder(robomimic.models.base_nets.Module):
+    def __init__(self, keypoint_pos_dim, in_dim, emb_dim, n_kp=8, keypoint_squash_method='concat'):
+        """
+        Simple MLP stacks to encode keypoint features and positions.
+        """
+        super().__init__()
+        # TODO: can also use sum or mean
+        self.encode_posfirst = nn.Sequential(
+            nn.Linear(keypoint_pos_dim, emb_dim),
+            nn.ReLU(),
+            nn.Linear(emb_dim, emb_dim // 2)
+        )
+        self.encode_feat = nn.Sequential(
+            nn.Linear(in_dim, emb_dim),
+            nn.ReLU(),
+            nn.Linear(emb_dim, emb_dim),
+        )
+        self.encode_pos = nn.Sequential(
+            nn.Linear(emb_dim + emb_dim // 2, emb_dim * 2),
+            nn.ReLU(),
+            nn.Linear(emb_dim * 2, emb_dim * 2),
+            nn.ReLU(),
+            nn.Linear(emb_dim * 2, emb_dim),
+        )
+        if keypoint_squash_method == 'concat':
+            multiply_factor = n_kp
+        else:
+            multiply_factor = 1
+        self.out = nn.Sequential(
+            nn.Linear(emb_dim * multiply_factor, emb_dim),
+            nn.ReLU(),
+            nn.Linear(emb_dim, emb_dim),
+            nn.ReLU(),
+            nn.Linear(emb_dim, emb_dim),
+        )
+        self.in_dim = in_dim
+        self.emb_dim = emb_dim
+        self.n_kp = n_kp
+        self.keypoint_squash_method = keypoint_squash_method
+
+    def forward(self, kp_input):
+        x_feat, x_pos = kp_input[..., :self.in_dim], kp_input[..., self.in_dim:]
+        x_pos_emb = self.encode_posfirst(x_pos)
+        x_feat = self.encode_feat(x_feat)
+        concat_input = torch.cat((x_feat, x_pos_emb), dim=2)
+        out = self.encode_pos(concat_input) # B N D
+        if self.keypoint_squash_method == 'concat':
+            out = out.view(x_feat.shape[0], -1) # B ND
+            out = self.out(out)
+        elif self.keypoint_squash_method == 'mean':
+            out = out.mean(dim=1)
+        elif self.keypoint_squash_method == 'sum':
+            out = out.sum(dim=1)
+        else:
+            raise ValueError(f"Unsupported keypoint squash method {self.keypoint_squash_method}")
+        return out
+
+    def output_shape(self, input_shape=None):
+        # To make it an instance of robomimic.models.base_nets.Module
+        return [self.emb_dim]
+
 
 class SFPUnetKeypointPolicy(BaseImagePolicy):
-    def __init__(self, 
+    def __init__(self,
             shape_meta: dict,
-            horizon, 
-            n_action_steps, 
+            horizon,
+            n_action_steps,
             n_obs_steps,
             num_inference_steps=None,
             obs_as_global_cond=True,
@@ -91,7 +154,7 @@ class SFPUnetKeypointPolicy(BaseImagePolicy):
             hdf5_type='image',
             task_name='square',
             dataset_type='ph')
-        
+
         with config.unlocked():
             # set config with shape_meta
             config.observation.modalities.obs = obs_config
@@ -112,18 +175,18 @@ class SFPUnetKeypointPolicy(BaseImagePolicy):
             )
 
         obs_encoder = policy.nets['policy'].nets['encoder'].nets['obs']
-        
+
         if obs_encoder_group_norm:
             # replace batch norm with group norm
             replace_submodules(
                 root_module=obs_encoder,
                 predicate=lambda x: isinstance(x, nn.BatchNorm2d),
                 func=lambda x: nn.GroupNorm(
-                    num_groups=x.num_features//16, 
+                    num_groups=x.num_features//16,
                     num_channels=x.num_features)
             )
             # obs_encoder.obs_nets['agentview_image'].nets[0].nets
-        
+
         # obs_encoder.obs_randomizers['agentview_image']
         if eval_fixed_crop:
             replace_submodules(
@@ -232,7 +295,7 @@ class SFPUnetKeypointPolicy(BaseImagePolicy):
         self.gripper_no_noise = gripper_no_noise
         self.gripper_normalize = gripper_normalize
         self.biased_prob = biased_prob
-    
+
     def set_n_action_int_steps(self, set_action_steps, set_int_steps):
         '''
         Set the number of action steps and update the time span and select action indices accordingly.
@@ -242,7 +305,7 @@ class SFPUnetKeypointPolicy(BaseImagePolicy):
         max_time = self.n_action_steps/self.horizon #action horizon/ prediction horizon
         total_int_steps = self.n_action_steps * self.unit_int_steps +1 # fixed, previously did not multiply by unit_int_steps
         self.t_span = torch.linspace(0, max_time, total_int_steps)
-        
+
         if self.use_action_traj:
             print(0, total_int_steps-1, self.unit_int_steps)
             self.select_action_indices = np.arange(0, total_int_steps-1, self.unit_int_steps) #[0, 1, ..., 7]
@@ -252,11 +315,11 @@ class SFPUnetKeypointPolicy(BaseImagePolicy):
         print('self.horizon', self.horizon)
         print('t span', self.t_span)
         print('select_action_indices', self.select_action_indices)
-    
+
     # ========= inference  ============
     def get_traj(self,
                  global_cond, #dictionary
-                 nobs, 
+                 nobs,
                  obs,
                  prev_action = None,
                 **kwargs
@@ -277,7 +340,7 @@ class SFPUnetKeypointPolicy(BaseImagePolicy):
                 unnorm_x_test = obs['agent_pos'][:,-1:,:] # B, T, 10
                 prev_x = self.normalizer['action'].normalize(unnorm_x_test) #normalize with action normalizer
             else:
-                prev_x = prev_action 
+                prev_x = prev_action
 
             # manual integration
             traj_list = []
@@ -288,12 +351,13 @@ class SFPUnetKeypointPolicy(BaseImagePolicy):
                     if self.gripper_normalize != 1: # unnormalized gripper velocity
                         pred_v[:, :, -1] = pred_v[:, :, -1] * self.gripper_normalize
                     prev_x = prev_x + pred_v * 1/(self.horizon * self.unit_int_steps) # [56, 1, 2]
+                    print('pred_v', pred_v)
                     ## TODO: check if the gripper is the in the last dim
                     prev_x[:, :, -1] = prev_x[:, :, -1].clamp(-1.0, 1.0) # clamp the gripper value prev_x[0, :, -1] -> dim 2, -1 idx
-            traj = torch.stack(traj_list, dim=0)  
+            traj = torch.stack(traj_list, dim=0)
 
             return traj #[9, 56, 1, 2]
-    
+
     def predict_action(self, obs_dict: Dict[str, torch.Tensor], prev_action = None) -> Dict[str, torch.Tensor]:
         """
         obs_dict: must include "obs" key
@@ -308,12 +372,12 @@ class SFPUnetKeypointPolicy(BaseImagePolicy):
         value = next(iter(nobs.values()))
         B, To = value.shape[:2]
         To = self.n_obs_steps
-        
+
         # get obs embedding
         this_nobs = dict_apply(nobs, lambda x: x[:,:To,...].reshape(-1,*x.shape[2:])) #torch.Size([112, 3, 96, 96]) torch.Size([112, 2])
         nobs_features = self.obs_encoder(this_nobs) # [112, 66]
         global_cond = nobs_features.reshape(B, -1) #[56, 132] # reshape back to B, Do
-        
+
         naction_pred = self.get_traj(global_cond, nobs, obs_dict, prev_action) #[8, 56, 1, 2]
 
         # use the last two dim of obs normalizer s.t. it's consistent with training normalization
@@ -326,14 +390,14 @@ class SFPUnetKeypointPolicy(BaseImagePolicy):
                         obs_for_action=True, action_idx_start = -self.action_dim) # Push T: action_idx_start = -2
         prev_action = naction_pred[-1] # save a_8, last action as memory var [9, 56, 1, 2] -> #[56, 1, 2]
         action = action_pred[self.select_action_indices] # [9, 56, 1, 2] -> [8, 56, 1, 2] select action indices - for use_action_traj case, select first 8
-        action  = action.permute(1, 0, 2, 3).squeeze(2) #[56, 8, 2] 
+        action  = action.permute(1, 0, 2, 3).squeeze(2) #[56, 8, 2]
 
         result = {
             'action': action,
             'action_pred': action_pred,
-            'prev_action': prev_action, 
+            'prev_action': prev_action,
         }
-        
+
         return result
 
     # ========= training  ============
@@ -341,42 +405,42 @@ class SFPUnetKeypointPolicy(BaseImagePolicy):
         self.normalizer.load_state_dict(normalizer.state_dict())
 
     # def compute_loss(self, batch, x_t_sigma):
-        # normalize input
-        assert 'valid_mask' not in batch
-        nactions = self.normalizer['action'].normalize(batch['action'])
-        nobs = self.normalizer.normalize(batch['obs'])
-        # [64, 16, 3, 96, 96]) torch.Size([64, 16, 2]
-        batch_size = nactions.shape[0]
-        # reshape B, T, ... to B*T
-        this_nobs = dict_apply(nobs, 
-            lambda x: x[:,:self.n_obs_steps,...].reshape(-1,*x.shape[2:]))
-        nobs_features = self.obs_encoder(this_nobs) #128, 66]
-        # reshape back to B, Do
-        global_cond = nobs_features.reshape(batch_size, -1) #[64, 132]
-        if self.use_action_traj:
-            action_traj = nactions
-        else:
-            action_traj = nobs['agent_pos'][:, 1:, :] #[64, 18, 2] -> [64, 17, 2] #action_traj = obs[:,1:,-2:] #[256, 17, 2]
-        # print('action_traj', action_traj[0,0,:])
-        # sample a random time step in Uniform(0, 1)
-        t = torch.rand(action_traj.shape[0]).float().to(self.device)
-        # sample q(t) ~ N(q̃(t), σ₀ exp(-kt))
-        # calculate velosity at time t: u = -k * (qt - q̃t) + ṽt 
-        # print('action_traj', action_traj.shape, 't', t.shape, 'T', self.horizon)
-        xt, ut = get_total_xt_ut_ot(action_traj, t = t, T = self.horizon, k = self.k,
-                                    sigma = x_t_sigma, device=self.device,
-                                    #### TODO: robomimic check
-                                    gripper_no_noise = self.gripper_no_noise, gripper_normalize = self.gripper_normalize,
-                                    biased_prob = self.biased_prob, 
-                                    biased_gripper = self.biased_gripper, gripper_velocity = self.gripper_velocity
-                                        ) # xt shape: [256, 2], (batch_size, action_dim)
-        xt, ut = xt.unsqueeze(1), ut.unsqueeze(1) #xt: (batch_size, pred_horizon, action_dim)[256, 1, 2]; ut: same as xt
-        # print('ut', ut[0,0,-1])
-        # print('xt', xt.shape, 'ut', ut.shape)
-        # predict the vector field from the model
-        noise_pred_net = self.model
-        vt = noise_pred_net(sample=xt,timestep=t, global_cond = global_cond)
+    #     # normalize input
+    #     assert 'valid_mask' not in batch
+    #     nactions = self.normalizer['action'].normalize(batch['action'])
+    #     nobs = self.normalizer.normalize(batch['obs'])
+    #     # [64, 16, 3, 96, 96]) torch.Size([64, 16, 2]
+    #     batch_size = nactions.shape[0]
+    #     # reshape B, T, ... to B*T
+    #     this_nobs = dict_apply(nobs,
+    #         lambda x: x[:,:self.n_obs_steps,...].reshape(-1,*x.shape[2:]))
+    #     nobs_features = self.obs_encoder(this_nobs) #128, 66]
+    #     # reshape back to B, Do
+    #     global_cond = nobs_features.reshape(batch_size, -1) #[64, 132]
+    #     if self.use_action_traj:
+    #         action_traj = nactions
+    #     else:
+    #         action_traj = nobs['agent_pos'][:, 1:, :] #[64, 18, 2] -> [64, 17, 2] #action_traj = obs[:,1:,-2:] #[256, 17, 2]
+    #     # print('action_traj', action_traj[0,0,:])
+    #     # sample a random time step in Uniform(0, 1)
+    #     t = torch.rand(action_traj.shape[0]).float().to(self.device)
+    #     # sample q(t) ~ N(q̃(t), σ₀ exp(-kt))
+    #     # calculate velosity at time t: u = -k * (qt - q̃t) + ṽt
+    #     # print('action_traj', action_traj.shape, 't', t.shape, 'T', self.horizon)
+    #     xt, ut = get_total_xt_ut_ot(action_traj, t = t, T = self.horizon, k = self.k,
+    #                                 sigma = x_t_sigma, device=self.device,
+    #                                 #### TODO: robomimic check
+    #                                 gripper_no_noise = self.gripper_no_noise, gripper_normalize = self.gripper_normalize,
+    #                                 biased_prob = self.biased_prob,
+    #                                 biased_gripper = self.biased_gripper, gripper_velocity = self.gripper_velocity
+    #                                     ) # xt shape: [256, 2], (batch_size, action_dim)
+    #     xt, ut = xt.unsqueeze(1), ut.unsqueeze(1) #xt: (batch_size, pred_horizon, action_dim)[256, 1, 2]; ut: same as xt
+    #     # print('ut', ut[0,0,-1])
+    #     # print('xt', xt.shape, 'ut', ut.shape)
+    #     # predict the vector field from the model
+    #     noise_pred_net = self.model
+    #     vt = noise_pred_net(sample=xt,timestep=t, global_cond = global_cond)
 
-        # L2 loss
-        loss = nn.functional.mse_loss(vt, ut)
-        return loss
+    #     # L2 loss
+    #     loss = nn.functional.mse_loss(vt, ut)
+    #     return loss
