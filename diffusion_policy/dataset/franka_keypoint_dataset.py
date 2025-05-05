@@ -68,7 +68,7 @@ class FrankaPickKeypointDataset(BaseImageDataset):
             'agent_pos': self.replay_buffer['state']
         }
         normalizer = LinearNormalizer()
-        # normalizer.fit(data=data, last_n_dims=1, mode=mode, **kwargs)
+        normalizer.fit(data=data, last_n_dims=1, mode=mode, **kwargs)
         # TODO identity okay?
         normalizer['keypoint'] = get_identity_normalizer()
         if self.all_identity_normalizer:
