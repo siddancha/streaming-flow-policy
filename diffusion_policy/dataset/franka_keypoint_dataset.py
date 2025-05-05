@@ -20,7 +20,7 @@ class FrankaPickKeypointDataset(BaseImageDataset):
             val_ratio=0.0,
             max_train_episodes=None,
             use_3d_keypoint=True,
-            all_identity_normalizer=False,
+            all_identity_normalizer=True,
             ):
         
         super().__init__()
