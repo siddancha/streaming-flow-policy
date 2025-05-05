@@ -41,17 +41,42 @@ def convert_scale(points_yx, original_hw, crop_size):
     return np.stack([y_resized, x_resized], axis=-1).astype(np.int32)
 
 
+def get_validstep_ids(traj_qpos, valid_delta=2e-4):
+    """
+    Truncate steps that are too close to each other.
+    Args:
+        traj_qpos:
+        valid_delta:
+    Returns:
+        Array of valid entry ids
+    """
+    truncated_ids = [0]
+    for k in range(traj_qpos.shape[0]):
+        delta_dist = np.linalg.norm(traj_qpos[k] - traj_qpos[truncated_ids[-1]])
+        if delta_dist < valid_delta:
+            continue
+        truncated_ids.append(k)
+    truncated_ids = np.array(truncated_ids)
+    return truncated_ids
+
+
 def main():
-    data_folder = '/data3/xiaolinf/franka_pick/'
-    zarr_save_path = 'data/franka_pick_kp3d.zarr'
+    data_folders = ['/home/xiaolinf/002-franka-picknplace/', '/data3/xiaolinf/franka_pick/']
+    zarr_save_path = 'data/franka_pick_kp3d_v5.zarr'
     target_keypoints_num = 10
     crop_size = 256
-    pkl_files = glob.glob(data_folder + 'pick_apple**.pkl')
+    vis = False
+    pkl_files = []
+    for data_folder in data_folders:
+        pkl_files += glob.glob(data_folder + '/pick_apple**.pkl')
+
     all_rgb, all_state, all_action, episode_end = [], [], [], []
     all_keypoints_ij, all_keypoints_xyz, all_keypoints_visibility = [], [], []
 
     perception_interface = initialize_perception_interface()
     keypoint_tracker = Tracker()
+
+    all_vis = []
 
     for pkl_filename in tqdm(pkl_files):
         print(f'Processing {pkl_filename}')
@@ -80,24 +105,17 @@ def main():
         valid_points_yx = np.argwhere(target_object_mask)
         selected_keypoints_idx = np.random.choice(np.arange(valid_points_yx.shape[0]), size=target_keypoints_num, replace=False)
         selected_keypoints_yx_ori_size = valid_points_yx[selected_keypoints_idx]
-        selected_keypoints = convert_scale(selected_keypoints_yx_ori_size, step['mount2']['rgb'].shape[:2], crop_size)[..., ::-1].copy()
+        selected_keypoints = convert_scale(selected_keypoints_yx_ori_size, step0['mount2']['rgb'].shape[:2], crop_size)[..., ::-1].copy()
         keypoint_tracker.initialize(init_im, selected_keypoints)
         tracked_keypoints_ij, tracked_keypoints_visibility = keypoint_tracker.track_offline(
             onetraj_rgb[1:], save_name=f'tracked_{os.path.basename(pkl_filename)[:-4]}'
         )
         onetraj_keypoints_ij = np.concatenate((selected_keypoints[np.newaxis, ...], tracked_keypoints_ij)) / crop_size # normalize to 0-1
+        onetraj_keypoints_ij[onetraj_keypoints_ij > 1] = 1.
+        onetraj_keypoints_ij_scaled = (onetraj_keypoints_ij * crop_size).astype(np.int64)
+        onetraj_keypoints_ij_scaled[onetraj_keypoints_ij_scaled >= crop_size] = crop_size - 1
         onetraj_keypoints_xyz = np.stack(
-            [pcd[ij.astype(np.int64)[:, 1], ij.astype(np.int64)[:, 0]] for pcd, ij in zip(onetraj_pcd, onetraj_keypoints_ij * crop_size)]
-        )
-        # for pcd, kp_xyz in zip(onetraj_pcd, onetraj_keypoints_xyz):
-        #     pcd_vis = trimesh.points.PointCloud(pcd.reshape(-1, 3))
-        #     xyz_vis = trimesh.points.PointCloud(kp_xyz)
-        #     xyz_vis.colors = np.array([1., 0,0])
-        #     trimesh.Scene([pcd_vis, xyz_vis]).show()
-        # TODO: handle xyz == 0 cases
-        # NOTE: not necessary? If not zero mean, xyz == 0 is fine
-        onetraj_keypoints_visibility = np.concatenate(
-            (np.ones((1, selected_keypoints.shape[0]), dtype=bool), tracked_keypoints_visibility)
+            [pcd[ij[:, 1], ij[:, 0]] for pcd, ij in zip(onetraj_pcd, onetraj_keypoints_ij_scaled)]
         )
 
         for step in raw_data['trajectory']:
@@ -107,13 +125,38 @@ def main():
         onetraj_action = onetraj_state[1:]
         onetraj_action.append(np.zeros(10))
 
-        all_rgb.extend(onetraj_rgb)
-        all_keypoints_ij.append(onetraj_keypoints_ij)
-        all_keypoints_xyz.append(onetraj_keypoints_xyz)
-        all_keypoints_visibility.append(onetraj_keypoints_visibility)
-        all_state.extend(onetraj_state)
-        all_action.extend(onetraj_action)
-        episode_end.append(len(all_rgb))
+            if vis:
+                # import trimesh
+                # gripper_pcd = trimesh.points.PointCloud(
+                #     np.array(onetraj_state)[:, :3],
+                #     colors = np.linspace((0, 1., 0), (0, 1., 1.), len(onetraj_state))
+                # )
+                # pcd_vis = trimesh.points.PointCloud(
+                #     onetraj_pcd[-1].reshape(-1, 3),
+                #     colors = onetraj_rgb[-1].reshape(-1, 3)
+                # )
+                # keypoint_vis = trimesh.points.PointCloud(
+                #     onetraj_keypoints_xyz[-1].reshape(-1, 3), colors=np.array([1., 0, 0])
+                # )
+                # trimesh.Scene([pcd_vis, keypoint_vis, gripper_pcd]).show()
+                all_vis.append([
+                    np.array(onetraj_state)[:, :3], onetraj_pcd[-1].reshape(-1, 3),
+                    onetraj_rgb[-1].reshape(-1, 3), onetraj_keypoints_xyz[-1].reshape(-1, 3)
+                ])
+
+            # TODO: handle xyz == 0 cases
+            # NOTE: not necessary? If not zero mean, xyz == 0 is fine
+            onetraj_keypoints_visibility = np.concatenate(
+                (np.ones((1, selected_keypoints.shape[0]), dtype=bool), tracked_keypoints_visibility)
+            )
+
+            all_rgb.extend(onetraj_rgb)
+            all_keypoints_ij.append(onetraj_keypoints_ij)
+            all_keypoints_xyz.append(onetraj_keypoints_xyz)
+            all_keypoints_visibility.append(onetraj_keypoints_visibility)
+            all_state.extend(onetraj_state)
+            all_action.extend(onetraj_action)
+            episode_end.append(len(all_rgb))
 
     store = zarr.DirectoryStore(zarr_save_path)
     root = zarr.group(store=store, overwrite=True)
