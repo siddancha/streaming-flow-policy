@@ -320,6 +320,8 @@ class SFPUnetKeypointPolicy(BaseImagePolicy):
         # use the last two dim of obs normalizer s.t. it's consistent with training normalization
         if self.use_action_traj:
             action_pred = self.normalizer['action'].unnormalize(naction_pred) # [9, 56, 1, 2]
+            if self.gripper_velocity: # do not normalize gripper velocity
+                action_pred[..., -1] = naction_pred[..., -1]
         else:
             # not run here
             ## TODO: need to change for state imitation
