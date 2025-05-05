@@ -3,10 +3,10 @@ checkpoint:
   save_last_ckpt: true
   save_last_snapshot: false
   topk:
-    format_str: epoch={epoch:04d}-train_loss={train_loss:.3f}.ckpt
+    format_str: epoch={epoch:04d}-train_loss={train_loss:.4f}-val_loss={val_loss:.4f}.ckpt
     k: 5
-    mode: max
-    monitor_key: train_loss
+    mode: min
+    monitor_key: val_loss
 dataloader:
   batch_size: 64
   num_workers: 8
@@ -26,7 +26,7 @@ logging:
   group: null
   id: null
   mode: online
-  name: wandb_default
+  name: 012_franka_keypoint3d_datasetV3
   project: diffusion_policy_sfp
   resume: true
   tags:
@@ -108,7 +108,7 @@ task:
     pad_before: 1
     seed: 42
     val_ratio: 0.02
-    zarr_path: data/franka_pick_kp3d.zarr
+    zarr_path: data/franka_pick_kp3d_v3.zarr
     use_3d_keypoint: ${use_3d_keypoint}
   image_shape:
   - 3
