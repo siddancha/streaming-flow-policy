@@ -41,7 +41,7 @@ def convert_scale(points_yx, original_hw, crop_size):
     return np.stack([y_resized, x_resized], axis=-1).astype(np.int32)
 
 
-def get_validstep_ids(traj_qpos, valid_delta=2e-4):
+def get_validstep_ids(traj_qpos, valid_delta=8e-3) -> list:
     """
     Truncate steps that are too close to each other.
     Args:
@@ -56,7 +56,6 @@ def get_validstep_ids(traj_qpos, valid_delta=2e-4):
         if delta_dist < valid_delta:
             continue
         truncated_ids.append(k)
-    truncated_ids = np.array(truncated_ids)
     return truncated_ids
 
 
@@ -84,7 +83,12 @@ def main():
         print(f'Data loaded. {len(raw_data["trajectory"])} steps')
         onetraj_rgb, onetraj_pcd, onetraj_state_v1 = [], [], []
 
-        for step in raw_data['trajectory']:
+        valid_step_ids = get_validstep_ids(np.asarray([step['robot']['qpos'] for step in raw_data['trajectory']]))
+        valid_trajectory = np.take(raw_data['trajectory'], valid_step_ids, axis=0)
+        print(f'{len(valid_trajectory)} valid steps after truncating')
+        print(f'valid idx {np.array(valid_step_ids)}')
+
+        for step in valid_trajectory:
             onetraj_rgb.append(preprocess_rgb(step['mount2']['rgb'], crop_size))
             pcd = RGBDObservation(
                 step['mount2']['rgb'], step['mount2']['depth'],
@@ -92,7 +96,7 @@ def main():
             ).pcd_worldframe
             onetraj_pcd.append(preprocess_rgb(pcd, crop_size))
 
-        step0 = raw_data['trajectory'][0]
+        step0 = valid_trajectory[0]
 
         init_im = onetraj_rgb[0]
 
@@ -118,8 +122,8 @@ def main():
             [pcd[ij[:, 1], ij[:, 0]] for pcd, ij in zip(onetraj_pcd, onetraj_keypoints_ij_scaled)]
         )
 
-        for step in raw_data['trajectory']:
-            onetraj_state.append(get_state(step['robot']))
+        for step in valid_trajectory:
+            onetraj_state_v1.append(get_state(step['robot']))
 
         onetrajs_state = [onetraj_state_v1]
         # HACK: Data augmentation. Gripper start with 0 if 'failure recovery' traj
