@@ -12,7 +12,7 @@ from diffusion_policy.common.normalize_util import get_image_range_normalizer, g
 
 class FrankaPickKeypointDataset(BaseImageDataset):
     def __init__(self,
-            zarr_path, 
+            zarr_path,
             horizon=1,
             pad_before=0,
             pad_after=0,
@@ -22,25 +22,25 @@ class FrankaPickKeypointDataset(BaseImageDataset):
             use_3d_keypoint=True,
             all_identity_normalizer=True,
             ):
-        
+
         super().__init__()
         print(f'Loading FrankaImageDataset from {zarr_path}')
         self.replay_buffer = ReplayBuffer.copy_from_path(
             zarr_path, keys=['keypoints_ij', 'keypoints_xyz', 'keypoints_visibility', 'state', 'action'])
         val_mask = get_val_mask(
-            n_episodes=self.replay_buffer.n_episodes, 
+            n_episodes=self.replay_buffer.n_episodes,
             val_ratio=val_ratio,
             seed=seed)
         train_mask = ~val_mask
         train_mask = downsample_mask(
-            mask=train_mask, 
-            max_n=max_train_episodes, 
+            mask=train_mask,
+            max_n=max_train_episodes,
             seed=seed)
 
         self.sampler = SequenceSampler(
-            replay_buffer=self.replay_buffer, 
+            replay_buffer=self.replay_buffer,
             sequence_length=horizon,
-            pad_before=pad_before, 
+            pad_before=pad_before,
             pad_after=pad_after,
             episode_mask=train_mask)
         self.train_mask = train_mask
@@ -53,9 +53,9 @@ class FrankaPickKeypointDataset(BaseImageDataset):
     def get_validation_dataset(self):
         val_set = copy.copy(self)
         val_set.sampler = SequenceSampler(
-            replay_buffer=self.replay_buffer, 
+            replay_buffer=self.replay_buffer,
             sequence_length=self.horizon,
-            pad_before=self.pad_before, 
+            pad_before=self.pad_before,
             pad_after=self.pad_after,
             episode_mask=~self.train_mask
             )
@@ -68,7 +68,7 @@ class FrankaPickKeypointDataset(BaseImageDataset):
             'agent_pos': self.replay_buffer['state']
         }
         normalizer = LinearNormalizer()
-        normalizer.fit(data=data, last_n_dims=1, mode=mode, **kwargs)
+        # normalizer.fit(data=data, last_n_dims=1, mode=mode, **kwargs)
         # TODO identity okay?
         normalizer['keypoint'] = get_identity_normalizer()
         if self.all_identity_normalizer:
@@ -103,7 +103,7 @@ class FrankaPickKeypointDataset(BaseImageDataset):
             'action': sample['action'].astype(np.float32) # T, 10
         }
         return data
-    
+
     def __getitem__(self, idx: int) -> Dict[str, torch.Tensor]:
         sample = self.sampler.sample_sequence(idx)
         data = self._sample_to_data(sample)
@@ -112,11 +112,18 @@ class FrankaPickKeypointDataset(BaseImageDataset):
 
 
 def test():
-    zarr_path = './data/franka_pick_kp3d.zarr'
+    zarr_path = './data/franka_pick_kp3d_v3.zarr'
     dataset = FrankaPickKeypointDataset(zarr_path, horizon=16)
 
     for i in range(1000):
-        print(dataset.__getitem__(i)['action'][-1, -1],)
+        # print(dataset.__getitem__(i)['action'][-1, -1],)
+        step_data = dataset.__getitem__(i)
+        action_data = step_action['action']
+        action_data_prev = action_data[:-1]
+        action_data_next = action_data[1:]
+        print(action_data_next - action_data_prev)
+        from IPython import embed; embed()
+        print('-' * 20)
 
     from matplotlib import pyplot as plt
     normalizer = dataset.get_normalizer()

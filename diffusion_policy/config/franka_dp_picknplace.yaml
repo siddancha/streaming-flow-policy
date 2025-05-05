@@ -3,10 +3,10 @@ checkpoint:
   save_last_ckpt: true
   save_last_snapshot: false
   topk:
-    format_str: epoch={epoch:04d}-train_loss={train_loss:.3f}.ckpt
+    format_str: epoch={epoch:04d}-train_loss={train_loss:.4f}-val_loss={val_loss:.4f}.ckpt
     k: 5
-    mode: max
-    monitor_key: train_loss
+    mode: min
+    monitor_key: val_loss
 dataloader:
   batch_size: 64
   num_workers: 8
@@ -26,7 +26,7 @@ logging:
   group: null
   id: null
   mode: online
-  name: 011_franka_keypoint3d_datasetV3
+  name: 014_image_datasetV3
   project: diffusion_policy_sfp
   resume: true
   tags:
@@ -65,15 +65,27 @@ policy:
   n_groups: 8
   n_obs_steps: 2
   noise_scheduler:
-    _target_: diffusers.schedulers.scheduling_ddpm.DDPMScheduler
-    beta_end: 0.02
-    beta_schedule: squaredcos_cap_v2
-    beta_start: 0.0001
-    clip_sample: false
+    _target_: diffusers.schedulers.scheduling_ddim.DDIMScheduler
     num_train_timesteps: 100
+    beta_start: 0.0001
+    beta_end: 0.02
+    # beta_schedule is important
+    # this is the best we found
+    beta_schedule: squaredcos_cap_v2
+    clip_sample: false
+    set_alpha_to_one: True
+    steps_offset: 0
     prediction_type: sample
-    variance_type: fixed_small
-  num_inference_steps: 100
+
+    # _target_: diffusers.schedulers.scheduling_ddpm.DDPMScheduler
+    # beta_start: 0.0001
+    # beta_end: 0.02
+    # beta_schedule: squaredcos_cap_v2
+    # clip_sample: false
+    # num_train_timesteps: 100
+    # prediction_type: sample
+    # variance_type: fixed_small
+  num_inference_steps: 16 # 100 if DDPM
   obs_as_global_cond: true
   obs_encoder_group_norm: true
   shape_meta:
@@ -152,7 +164,7 @@ training:
   seed: 42
   tqdm_interval_sec: 1.0
   use_ema: true
-  val_every: 1
+  val_every: 50
 val_dataloader:
   batch_size: 64
   num_workers: 8

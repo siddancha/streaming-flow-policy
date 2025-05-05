@@ -7,11 +7,11 @@ from diffusion_policy.common.replay_buffer import ReplayBuffer
 from diffusion_policy.common.sampler import SequenceSampler, get_val_mask, downsample_mask
 from diffusion_policy.model.common.normalizer import LinearNormalizer
 from diffusion_policy.dataset.base_dataset import BaseImageDataset
-from diffusion_policy.common.normalize_util import get_image_range_normalizer
+from diffusion_policy.common.normalize_util import get_image_range_normalizer, get_identity_normalizer
 
 class FrankaPickImageDataset(BaseImageDataset):
     def __init__(self,
-            zarr_path, 
+            zarr_path,
             horizon=1,
             pad_before=0,
             pad_after=0,
@@ -19,25 +19,25 @@ class FrankaPickImageDataset(BaseImageDataset):
             val_ratio=0.0,
             max_train_episodes=None
             ):
-        
+
         super().__init__()
         print(f'Loading FrankaImageDataset from {zarr_path}')
         self.replay_buffer = ReplayBuffer.copy_from_path(
             zarr_path, keys=['img', 'state', 'action'])
         val_mask = get_val_mask(
-            n_episodes=self.replay_buffer.n_episodes, 
+            n_episodes=self.replay_buffer.n_episodes,
             val_ratio=val_ratio,
             seed=seed)
         train_mask = ~val_mask
         train_mask = downsample_mask(
-            mask=train_mask, 
-            max_n=max_train_episodes, 
+            mask=train_mask,
+            max_n=max_train_episodes,
             seed=seed)
 
         self.sampler = SequenceSampler(
-            replay_buffer=self.replay_buffer, 
+            replay_buffer=self.replay_buffer,
             sequence_length=horizon,
-            pad_before=pad_before, 
+            pad_before=pad_before,
             pad_after=pad_after,
             episode_mask=train_mask)
         self.train_mask = train_mask
@@ -48,9 +48,9 @@ class FrankaPickImageDataset(BaseImageDataset):
     def get_validation_dataset(self):
         val_set = copy.copy(self)
         val_set.sampler = SequenceSampler(
-            replay_buffer=self.replay_buffer, 
+            replay_buffer=self.replay_buffer,
             sequence_length=self.horizon,
-            pad_before=self.pad_before, 
+            pad_before=self.pad_before,
             pad_after=self.pad_after,
             episode_mask=~self.train_mask
             )
@@ -63,8 +63,10 @@ class FrankaPickImageDataset(BaseImageDataset):
             'agent_pos': self.replay_buffer['state']
         }
         normalizer = LinearNormalizer()
-        normalizer.fit(data=data, last_n_dims=1, mode=mode, **kwargs)
+        # normalizer.fit(data=data, last_n_dims=1, mode=mode, **kwargs)
         normalizer['image'] = get_image_range_normalizer()
+        normalizer['action'] = get_identity_normalizer()
+        normalizer['agent_pos'] = get_identity_normalizer()
         return normalizer
 
     def __len__(self) -> int:
@@ -82,7 +84,7 @@ class FrankaPickImageDataset(BaseImageDataset):
             'action': sample['action'].astype(np.float32) # T, 10
         }
         return data
-    
+
     def __getitem__(self, idx: int) -> Dict[str, torch.Tensor]:
         sample = self.sampler.sample_sequence(idx)
         data = self._sample_to_data(sample)

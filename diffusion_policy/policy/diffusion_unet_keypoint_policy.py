@@ -83,11 +83,11 @@ class KpEncoder(robomimic.models.base_nets.Module):
 
 
 class DiffusionUnetKeypointPolicy(BaseImagePolicy):
-    def __init__(self, 
+    def __init__(self,
             shape_meta: dict,
             noise_scheduler: DDPMScheduler,
-            horizon, 
-            n_action_steps, 
+            horizon,
+            n_action_steps,
             n_obs_steps,
             num_inference_steps=None,
             obs_as_global_cond=True,
