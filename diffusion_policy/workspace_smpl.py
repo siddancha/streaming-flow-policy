@@ -1,6 +1,6 @@
 #! /usr/bin/env python3
 # -*- coding: utf-8 -*-
-# File   : workspace.py
+# File   : workspace_smpl.py
 # Author : Xiaolin Fang
 # Email  : fxlfang@gmail.com
 # Date   : 04/25/2025

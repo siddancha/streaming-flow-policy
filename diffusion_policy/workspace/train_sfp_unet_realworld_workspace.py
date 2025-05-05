@@ -19,7 +19,7 @@ import wandb
 import tqdm
 import numpy as np
 import shutil
-from diffusion_policy.workspace.base_workspace import BaseWorkspace
+from diffusion_policy.workspace_smpl import BaseWorkspace
 from diffusion_policy.policy.sfp_unet_keypoint_policy import SFPUnetKeypointPolicy
 from diffusion_policy.dataset.base_dataset import BaseImageDataset
 from diffusion_policy.common.checkpoint_util import TopKCheckpointManager

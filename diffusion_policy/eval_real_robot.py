@@ -15,13 +15,11 @@ import argparse
 import torch
 import hydra
 import dill
-import pickle
 import numpy as np
-import os.path as osp
 from beepp.perception import initialize_perception_interface, RGBDObservation
 from diffusion_policy.convert_to_zarr import get_state, preprocess_rgb, center_crop
 from diffusion_policy.common.pytorch_util import dict_apply
-from diffusion_policy.workspace import BaseWorkspace
+from diffusion_policy.workspace_smpl import BaseWorkspace
 from diffusion_policy.policy.base_image_policy import BaseImagePolicy
 from diffusion_policy.hw_utils.robot_client_interface import initialize_robot_interface
 from diffusion_policy.hw_utils.rotation_utils import compute_rotation_matrix_from_ortho6d
