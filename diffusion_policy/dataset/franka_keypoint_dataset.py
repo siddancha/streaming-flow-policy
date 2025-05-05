@@ -19,7 +19,8 @@ class FrankaPickKeypointDataset(BaseImageDataset):
             seed=42,
             val_ratio=0.0,
             max_train_episodes=None,
-            use_3d_keypoint=True
+            use_3d_keypoint=True,
+            all_identity_normalizer=False,
             ):
         
         super().__init__()
@@ -47,6 +48,7 @@ class FrankaPickKeypointDataset(BaseImageDataset):
         self.pad_before = pad_before
         self.pad_after = pad_after
         self.use_3d_keypoint = use_3d_keypoint
+        self.all_identity_normalizer = all_identity_normalizer
 
     def get_validation_dataset(self):
         val_set = copy.copy(self)
@@ -69,8 +71,9 @@ class FrankaPickKeypointDataset(BaseImageDataset):
         normalizer.fit(data=data, last_n_dims=1, mode=mode, **kwargs)
         # TODO identity okay?
         normalizer['keypoint'] = get_identity_normalizer()
-        normalizer['action'] = get_identity_normalizer()
-        normalizer['agent_pos'] = get_identity_normalizer()
+        if self.all_identity_normalizer:
+            normalizer['action'] = get_identity_normalizer()
+            normalizer['agent_pos'] = get_identity_normalizer()
         return normalizer
 
     def __len__(self) -> int:
@@ -109,7 +112,7 @@ class FrankaPickKeypointDataset(BaseImageDataset):
 
 
 def test():
-    zarr_path = './data/franka_pick_kp.zarr'
+    zarr_path = './data/franka_pick_kp3d.zarr'
     dataset = FrankaPickKeypointDataset(zarr_path, horizon=16)
 
     for i in range(1000):
