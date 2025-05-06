@@ -375,11 +375,9 @@ class SFPUnetKeypointPolicy(BaseImagePolicy):
                                     biased_gripper = self.biased_gripper, gripper_velocity = self.gripper_velocity
                                         ) # xt shape: [256, 2], (batch_size, action_dim)
         xt, ut = xt.unsqueeze(1), ut.unsqueeze(1) #xt: (batch_size, pred_horizon, action_dim)[256, 1, 2]; ut: same as xt
-        # print('ut', ut[0,0,:])
-        # print('xt', xt.shape, 'ut', ut.shape)
         # predict the vector field from the model
         noise_pred_net = self.model
-        vt = noise_pred_net(sample=xt,timestep=t, global_cond = global_cond)
+        vt = noise_pred_net(sample=xt,timestep=t, global_cond = global_cond) #gloabl cond: 64, 148
         # print('vt', vt[0,0,:])
 
         # L2 loss
