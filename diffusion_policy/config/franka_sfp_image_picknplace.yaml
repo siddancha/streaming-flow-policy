@@ -8,7 +8,7 @@ checkpoint:
     mode: min
     monitor_key: val_loss
 dataloader:
-  batch_size: 64
+  batch_size: 96
   num_workers: 8
   persistent_workers: false
   pin_memory: true
@@ -139,7 +139,7 @@ task:
         type: rgb
     
 training:
-  checkpoint_every: 50
+  checkpoint_every: 20
   debug: false
   device: cuda:0
   gradient_accumulate_every: 1
@@ -155,10 +155,10 @@ training:
   seed: 42
   tqdm_interval_sec: 1.0
   use_ema: true
-  val_every: 50
+  val_every: 5
   x_t_sigma: 0.2 # added
 val_dataloader:
-  batch_size: 64
+  batch_size: 96
   num_workers: 8
   persistent_workers: false
   pin_memory: true
