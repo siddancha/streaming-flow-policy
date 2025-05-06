@@ -24,6 +24,7 @@ class FrankaPickKeypointDataset(BaseImageDataset):
             ):
 
         super().__init__()
+        print('------------------- Dataset -------------------------')
         print(f'Loading FrankaImageDataset from {zarr_path}')
         self.replay_buffer = ReplayBuffer.copy_from_path(
             zarr_path, keys=['keypoints_ij', 'keypoints_xyz', 'keypoints_visibility', 'state', 'action'])
