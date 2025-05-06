@@ -8,7 +8,7 @@ checkpoint:
     mode: min
     monitor_key: val_loss
 dataloader:
-  batch_size: 512
+  batch_size: 1024
   num_workers: 8
   persistent_workers: false
   pin_memory: true
@@ -26,7 +26,7 @@ logging:
   group: null
   id: null
   mode: online
-  name: 015_keypoint3d_DDIM
+  name: wandb_default
   project: diffusion_policy_sfp
   resume: true
   tags:
@@ -69,26 +69,15 @@ policy:
   n_groups: 8
   n_obs_steps: 2
   noise_scheduler:
-    _target_: diffusers.schedulers.scheduling_ddim.DDIMScheduler
-    num_train_timesteps: 100
-    beta_start: 0.0001
+    _target_: diffusers.schedulers.scheduling_ddpm.DDPMScheduler
     beta_end: 0.02
-    # beta_schedule is important
-    # this is the best we found
     beta_schedule: squaredcos_cap_v2
+    beta_start: 0.0001
     clip_sample: false
-    set_alpha_to_one: True
-    steps_offset: 0
+    num_train_timesteps: 100
     prediction_type: sample
-    # _target_: diffusers.schedulers.scheduling_ddpm.DDPMScheduler
-    # beta_end: 0.02
-    # beta_schedule: squaredcos_cap_v2
-    # beta_start: 0.0001
-    # clip_sample: false
-    # num_train_timesteps: 100
-    # prediction_type: sample
-    # variance_type: fixed_small
-  num_inference_steps: 16 # 16 if DDIM, 100 if DDPM
+    variance_type: fixed_small
+  num_inference_steps: 100
   obs_as_global_cond: true
   obs_encoder_group_norm: true
   shape_meta:
@@ -119,8 +108,9 @@ task:
     pad_before: 1
     seed: 42
     val_ratio: 0.02
-    zarr_path: data/franka_pick_kp3d_v3.zarr
+    zarr_path: data/franka_pick_kp3d_v7.zarr
     use_3d_keypoint: ${use_3d_keypoint}
+    kp_augmentation: False
   image_shape:
   - 3
   shape_meta:
@@ -145,7 +135,7 @@ training:
   lr_warmup_steps: 500
   max_train_steps: null
   max_val_steps: null
-  num_epochs: 3050
+  num_epochs: 4000
   resume: true
   rollout_every: 50
   sample_every: 5
@@ -154,7 +144,7 @@ training:
   use_ema: true
   val_every: 100
 val_dataloader:
-  batch_size: 512
+  batch_size: 1024
   num_workers: 8
   persistent_workers: false
   pin_memory: true

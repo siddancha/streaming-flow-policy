@@ -26,7 +26,7 @@ logging:
   group: null
   id: null
   mode: online
-  name: 021_keypoint3d_DDIM_v7
+  name: wandb_default
   project: diffusion_policy_sfp
   resume: true
   tags:
@@ -113,7 +113,7 @@ task:
     val_ratio: 0.02
     zarr_path: data/franka_pick_kp3d_v7.zarr
     use_3d_keypoint: ${use_3d_keypoint}
-    kp_augmentation: True
+    kp_augmentation: False
   image_shape:
   - 3
   shape_meta:

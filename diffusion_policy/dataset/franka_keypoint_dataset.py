@@ -21,6 +21,7 @@ class FrankaPickKeypointDataset(BaseImageDataset):
             max_train_episodes=None,
             use_3d_keypoint=True,
             all_identity_normalizer=True,
+            kp_augmentation=False,
             ):
 
         super().__init__()
@@ -50,6 +51,7 @@ class FrankaPickKeypointDataset(BaseImageDataset):
         self.pad_after = pad_after
         self.use_3d_keypoint = use_3d_keypoint
         self.all_identity_normalizer = all_identity_normalizer
+        self.kp_augmentation = kp_augmentation
 
     def get_validation_dataset(self):
         val_set = copy.copy(self)
@@ -82,6 +84,7 @@ class FrankaPickKeypointDataset(BaseImageDataset):
 
     def _sample_to_data(self, sample):
         agent_pos = sample['state'].astype(np.float32)
+        action = sample['action'].astype(np.float32)
         if self.use_3d_keypoint:
             keypoint_loc = sample['keypoints_xyz'].astype(np.float32) # T, N, 3
         else:
@@ -96,12 +99,20 @@ class FrankaPickKeypointDataset(BaseImageDataset):
         noise_keypoint_loc = np.random.rand(*keypoint_loc.shape) * 0.05 - 0.025
         keypoint_loc = keypoint_loc + noise_keypoint_loc
 
+        if self.kp_augmentation:
+            assert self.use_3d_keypoint
+            augment_range = np.array([0.15, 0.15, .05]) * 2
+            random_locshift_xyz = (np.random.rand(3) - 0.5) * augment_range
+            keypoint_loc += random_locshift_xyz
+            agent_pos[:, :3] += random_locshift_xyz
+            action[:, :3] += random_locshift_xyz
+
         data = {
             'obs': {
                 'keypoint': np.concatenate((keypoint_visibility, keypoint_loc), axis=-1), # T, 3 or T, 4
                 'agent_pos': agent_pos, # T, 10
             },
-            'action': sample['action'].astype(np.float32) # T, 10
+            'action': action # T, 10
         }
         return data
 
