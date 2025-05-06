@@ -1,0 +1,154 @@
+_target_: diffusion_policy.workspace.TrainDiffusionUnetHybridWorkspace
+checkpoint:
+  save_last_ckpt: true
+  save_last_snapshot: false
+  topk:
+    format_str: epoch={epoch:04d}-train_loss={train_loss:.4f}-val_loss={val_loss:.4f}.ckpt
+    k: 5
+    mode: min
+    monitor_key: val_loss
+dataloader:
+  batch_size: 1024
+  num_workers: 8
+  persistent_workers: false
+  pin_memory: true
+  shuffle: true
+dataset_obs_steps: 2
+ema:
+  _target_: diffusion_policy.model.diffusion.ema_model.EMAModel
+  inv_gamma: 1.0
+  max_value: 0.9999
+  min_value: 0.0
+  power: 0.75
+  update_after_step: 0
+horizon: 16
+logging:
+  group: null
+  id: null
+  mode: online
+  name: 021_keypoint3d_DDIM_v7
+  project: diffusion_policy_sfp
+  resume: true
+  tags:
+  - train_diffusion_unet_hybrid
+  - pusht_image
+  - default
+n_action_steps: 8
+n_latency_steps: 0
+n_obs_steps: 2
+name: train_diffusion_unet_hybrid
+task_name: franka_picknplace
+optimizer:
+  _target_: torch.optim.AdamW
+  betas:
+  - 0.95
+  - 0.999
+  eps: 1.0e-08
+  lr: 0.0001
+  weight_decay: 1.0e-06
+past_action_visible: false
+keypoint_featnpos_dim: 4
+use_3d_keypoint: true
+policy:
+  _target_: diffusion_policy.policy.diffusion_unet_keypoint_policy.DiffusionUnetKeypointPolicy
+  cond_predict_scale: true
+  diffusion_step_embed_dim: 128
+  keypoint_num: 10
+  keypoint_feat_dim: 1
+  keypoint_emb_dim: 64
+  keypoint_featnpos_dim: ${keypoint_featnpos_dim}
+  keypoint_squash_method: concat
+  down_dims:
+  - 512
+  - 1024
+  - 2048
+  eval_fixed_crop: true
+  horizon: ${horizon}
+  kernel_size: 5
+  n_action_steps: 8
+  n_groups: 8
+  n_obs_steps: 2
+  noise_scheduler:
+    _target_: diffusers.schedulers.scheduling_ddim.DDIMScheduler
+    num_train_timesteps: 100
+    beta_start: 0.0001
+    beta_end: 0.02
+    # beta_schedule is important
+    # this is the best we found
+    beta_schedule: squaredcos_cap_v2
+    clip_sample: false
+    set_alpha_to_one: True
+    steps_offset: 0
+    prediction_type: sample
+  num_inference_steps: 16 # 16 if DDIM, 100 if DDPM
+  obs_as_global_cond: true
+  obs_encoder_group_norm: true
+  shape_meta:
+    action:
+      shape:
+      - 10
+    obs:
+      agent_pos:
+        shape:
+        - 10
+        type: low_dim
+      keypoint:
+        shape:
+        - ${keypoint_featnpos_dim}
+        type: rgb
+      image: # Just for instantiating the robomimic model
+        shape:
+        - 3
+        - 256
+        - 256
+        type: rgb
+task:
+  dataset:
+    _target_: diffusion_policy.dataset.franka_keypoint_dataset.FrankaPickKeypointDataset
+    horizon: ${horizon}
+    max_train_episodes: 90
+    pad_after: 7
+    pad_before: 1
+    seed: 42
+    val_ratio: 0.02
+    zarr_path: data/franka_pick_kp3d_v7.zarr
+    use_3d_keypoint: ${use_3d_keypoint}
+    kp_augmentation: True
+  image_shape:
+  - 3
+  shape_meta:
+    action:
+      shape:
+      - 10
+    obs:
+      agent_pos:
+        shape:
+        - 10
+        type: low_dim
+      keypoint:
+        shape:
+        - ${keypoint_featnpos_dim}
+        type: rgb
+training:
+  checkpoint_every: 100
+  debug: false
+  device: cuda:0
+  gradient_accumulate_every: 1
+  lr_scheduler: cosine
+  lr_warmup_steps: 500
+  max_train_steps: null
+  max_val_steps: null
+  num_epochs: 4000
+  resume: true
+  rollout_every: 50
+  sample_every: 5
+  seed: 42
+  tqdm_interval_sec: 1.0
+  use_ema: true
+  val_every: 100
+val_dataloader:
+  batch_size: 1024
+  num_workers: 8
+  persistent_workers: false
+  pin_memory: true
+  shuffle: false
