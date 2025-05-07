@@ -132,6 +132,10 @@ def main(args):
         policy.eval().to(device)
     else:
         raise RuntimeError("Unsupported policy type: ", cfg.name)
+    
+    # [SFP] set action horizon and num int steps
+    if hasattr(policy, 'set_n_action_int_steps') and callable(getattr(policy, 'set_n_action_int_steps', None)): 
+            policy.set_n_action_int_steps(args.open_loop_horizon, args.num_int_steps)
 
     camera_names = ['mount2']
     robot_interface = initialize_robot_interface(args.robot_ip, local_rs=args.local_rs)
@@ -271,6 +275,7 @@ if __name__ == '__main__':
     parser.add_argument('--ckpt_path', type=str, required=True, help='Path to the checkpoint file')
     parser.add_argument('--robot_ip', type=str, default=f'tcp://{os.environ["FR3_CONTROL_ADDR"]}:5560')
     parser.add_argument('--open_loop_horizon', type=int, default=8, help='Open loop horizon for action prediction')
+    parser.add_argument('--num_int_steps', type=int, default=1, help='Number of integration steps for SFP')
     parser.add_argument('--kp2d', action='store_true', help='use keypoint 2d conditioned policy')
     parser.add_argument('--kp3d', action='store_true', help='use keypoint 3d conditioned policy')
     parser.add_argument('--keypoint_num', type=int, default=10, help='Number of keypoints to use in kp policy')
