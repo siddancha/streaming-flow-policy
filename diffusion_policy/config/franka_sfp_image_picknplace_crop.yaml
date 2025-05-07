@@ -8,7 +8,7 @@ checkpoint:
     mode: min
     monitor_key: val_loss
 dataloader:
-  batch_size: 156
+  batch_size: 108
   num_workers: 8
   persistent_workers: false
   pin_memory: true
@@ -55,8 +55,8 @@ policy:
   _target_: diffusion_policy.policy.sfp_unet_hybrid_image_policy.SFPUnetHybridImagePolicy
   encode_agent_pos: false
   crop_shape: #added for image
-  - 224
-  - 224
+  - 204
+  - 204
   k: 0 #added
   use_action_traj: true #added
   robomimic: true #added
@@ -159,7 +159,7 @@ training:
   val_every: 10
   x_t_sigma: 0.2 # added
 val_dataloader:
-  batch_size: 156
+  batch_size: 108
   num_workers: 8
   persistent_workers: false
   pin_memory: true

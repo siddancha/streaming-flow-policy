@@ -15,12 +15,34 @@ from robomimic.algo import algo_factory
 from robomimic.algo.algo import PolicyAlgo
 import robomimic.utils.obs_utils as ObsUtils
 import robomimic.models.base_nets as rmbn
+import robomimic
 import diffusion_policy.model.vision.crop_randomizer as dmvc
 from diffusion_policy.common.pytorch_util import dict_apply, replace_submodules
 
 # added
 import numpy as np
 from streaming_flow_policy.trainning_data_utils import get_total_xt_ut_ot
+
+class AgentPosEncoder(robomimic.models.base_nets.Module):
+    def __init__(self, agent_pos_emb_dim=32):
+        """
+        Simple MLP stacks to encode keypoint features and positions.
+        """
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(10, agent_pos_emb_dim),
+            nn.ReLU(),
+            nn.Linear(agent_pos_emb_dim, agent_pos_emb_dim),
+        )
+        self.agent_pos_emb_dim = agent_pos_emb_dim
+
+    def forward(self, x):
+        return self.net(x)
+
+    def output_shape(self, input_shape=None):
+        # To make it an instance of robomimic.models.base_nets.Module
+        return [self.agent_pos_emb_dim]
+
 
 class SFPUnetHybridImagePolicy(BaseImagePolicy):
     def __init__(self, 
@@ -47,6 +69,7 @@ class SFPUnetHybridImagePolicy(BaseImagePolicy):
             gripper_no_noise = False, #added
             gripper_normalize = 1, #added
             biased_prob = 0.9, #added
+            encode_agent_pos=False, #new added
             # parameters passed to step
             **kwargs):
         super().__init__()
@@ -66,6 +89,9 @@ class SFPUnetHybridImagePolicy(BaseImagePolicy):
         for key, attr in obs_shape_meta.items():
             shape = attr['shape']
             obs_key_shapes[key] = list(shape)
+
+            if encode_agent_pos and key == 'agent_pos':
+                continue
 
             type = attr.get('type', 'low_dim')
             if type == 'rgb':
@@ -136,6 +162,18 @@ class SFPUnetHybridImagePolicy(BaseImagePolicy):
                     pos_enc=x.pos_enc
                 )
             )
+        if encode_agent_pos:
+            agent_pos_encoder = AgentPosEncoder()
+        obs_encoder._locked = False # hack
+        if encode_agent_pos:
+            obs_encoder.register_obs_key(
+                name='agent_pos',
+                shape=(10, ),
+                net_class=None,
+                net_kwargs=None,
+                net=agent_pos_encoder,
+            )
+        obs_encoder._locked = True  # hack
 
         # create diffusion model
         obs_feature_dim = obs_encoder.output_shape()[0]
