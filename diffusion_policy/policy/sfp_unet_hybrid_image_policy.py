@@ -261,6 +261,7 @@ class SFPUnetHybridImagePolicy(BaseImagePolicy):
                     traj_list.append(prev_x)
                     pred_v =noise_pred_net(sample=prev_x,timestep=t.repeat(x_test.shape[0]).to("cuda"), global_cond=global_cond) #[56, 1, 2] # previously had global_cond.flatten(start_dim=1) -> not needed
                     prev_x = prev_x + pred_v * 1/(self.horizon * self.unit_int_steps) # [56, 1, 2]
+                    prev_x[:, :, -1] = prev_x[:, :, -1].clamp(0, 0.08)
                     ## TODO: check robomimic code
                     # if self.robomimic: # clamp for robomimic
                     #     prev_x[:, :, -1] = prev_x[:, :, -1].clamp(-1.0, 1.0) # clamp the gripper value prev_x[0, :, -1] -> dim 2, -1 idx
