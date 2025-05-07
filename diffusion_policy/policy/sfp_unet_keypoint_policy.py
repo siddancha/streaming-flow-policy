@@ -15,6 +15,7 @@ from robomimic.algo import algo_factory
 from robomimic.algo.algo import PolicyAlgo
 import robomimic.utils.obs_utils as ObsUtils
 import robomimic.models.base_nets as rmbn
+import robomimic
 import diffusion_policy.model.vision.crop_randomizer as dmvc
 from diffusion_policy.common.pytorch_util import dict_apply, replace_submodules
 
@@ -24,6 +25,26 @@ from streaming_flow_policy.trainning_data_utils import get_total_xt_ut_ot
 
 # keypoint policy
 from diffusion_policy.policy.diffusion_unet_keypoint_policy import KpEncoder
+
+class AgentPosEncoder(robomimic.models.base_nets.Module):
+    def __init__(self, agent_pos_emb_dim=32):
+        """
+        Simple MLP stacks to encode keypoint features and positions.
+        """
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(10, agent_pos_emb_dim),
+            nn.ReLU(),
+            nn.Linear(agent_pos_emb_dim, agent_pos_emb_dim),
+        )
+        self.agent_pos_emb_dim = agent_pos_emb_dim
+
+    def forward(self, x):
+        return self.net(x)
+
+    def output_shape(self, input_shape=None):
+        # To make it an instance of robomimic.models.base_nets.Module
+        return [self.agent_pos_emb_dim]
 
 class SFPUnetKeypointPolicy(BaseImagePolicy):
     def __init__(self, 
@@ -54,6 +75,7 @@ class SFPUnetKeypointPolicy(BaseImagePolicy):
             keypoint_squash_method='concat',
             keypoint_feat_dim=2,
             keypoint_emb_dim=128,
+            encode_agent_pos=False,
             # parameters passed to step
             **kwargs):
         super().__init__()
@@ -74,6 +96,8 @@ class SFPUnetKeypointPolicy(BaseImagePolicy):
             # added for keypoint
             if key == 'keypoint':
                 # Don't put in in the obs_config passing to robomimic
+                continue
+            if encode_agent_pos and key == 'agent_pos':
                 continue
             shape = attr['shape']
             obs_key_shapes[key] = list(shape)
@@ -163,8 +187,20 @@ class SFPUnetKeypointPolicy(BaseImagePolicy):
             net_kwargs=None,
             net=obs_kp_encoder,
         )
+        if encode_agent_pos:
+            agent_pos_encoder = AgentPosEncoder()
+        if encode_agent_pos:
+            print('using agent pos encoder')
+            obs_encoder.register_obs_key(
+                name='agent_pos',
+                shape=(10, ),
+                net_class=None,
+                net_kwargs=None,
+                net=agent_pos_encoder,
+            )
         obs_encoder._locked = True  # hack
         #### added end
+        print('obs_encoder', obs_encoder)
 
         # create diffusion model
         obs_feature_dim = obs_encoder.output_shape()[0]
@@ -227,6 +263,7 @@ class SFPUnetKeypointPolicy(BaseImagePolicy):
         print('t span', self.t_span)
         print('np.arange', 0, total_int_steps-1, self.unit_int_steps)
         print('select_action_indices', self.select_action_indices)
+        print('keypoint_emb_dim', keypoint_emb_dim)
         # added
         self.gripper_velocity = gripper_velocity
         self.biased_gripper = biased_gripper
@@ -265,7 +302,7 @@ class SFPUnetKeypointPolicy(BaseImagePolicy):
             '''
             nobs: {
                 'image': torch.Size([56, 2, 3, 96, 96]),
-                'agent_pos': torch.Size([56, 2, 2])
+                '': torch.Size([56, 2, 2])
             }
             '''
             noise_pred_net = self.model
