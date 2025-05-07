@@ -124,25 +124,30 @@ class FrankaPickKeypointDataset(BaseImageDataset):
 
 
 def test():
-    zarr_path = './data/franka_pick_kp3d_v3.zarr'
-    dataset = FrankaPickKeypointDataset(zarr_path, horizon=16)
+    zarr_path = './data/franka_pick_kp3d_v7.zarr'
+    dataset = FrankaPickKeypointDataset(zarr_path, horizon=16, kp_augmentation=True)
 
-    for i in range(1000):
+    for i in range(6800):
         # print(dataset.__getitem__(i)['action'][-1, -1],)
         step_data = dataset.__getitem__(i)
-        action_data = step_action['action']
-        action_data_prev = action_data[:-1]
-        action_data_next = action_data[1:]
-        print(action_data_next - action_data_prev)
-        from IPython import embed; embed()
-        print('-' * 20)
+        action_data = step_data['action']
+        gripper_state = action_data[:-1, -1]
+        if (gripper_state < 0.05).any():
+            print(action_data)
+        # action_data_prev = action_data[:-1]
+        # action_data_next = action_data[1:]
+        # print(action_data_next - action_data_prev)
+        # from IPython import embed; embed()
+            print('-' * 20)
 
     from matplotlib import pyplot as plt
     normalizer = dataset.get_normalizer()
-    nactions = normalizer['action'].normalize(dataset.replay_buffer['action'])
-    diff = np.diff(nactions, axis=0)
-    dists = np.linalg.norm(np.diff(nactions, axis=0), axis=-1)
-    plt.hist(dists)
+    nactions = normalizer['action'].normalize(dataset.replay_buffer['action']).detach().cpu().numpy()
+    # # diff = np.diff(nactions, axis=0)
+    # dists = np.linalg.norm(np.diff(nactions, axis=0), axis=-1)
+    # plt.hist(dists)
+    gripper_state = nactions[(nactions!=0).any(axis=0), -1]
+    plt.hist(gripper_state)
     plt.show()
     plt.close()
 
