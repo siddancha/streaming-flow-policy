@@ -28,6 +28,7 @@ from diffusion_policy.hw_utils.rotation_utils import compute_rotation_matrix_fro
 CONTROL_FREQUENCY = 10 # Default 20 Hz
 VERBOSE_TIME_PERF = True #False
 gripper_open_width = 0.079
+gripper_valid_change_delta = 0.003
 
 def get_obs_dict(obs_im_buffer, action_buffer, args, keypoint_tracker=None):
     if VERBOSE_TIME_PERF:
@@ -52,7 +53,7 @@ def get_obs_dict(obs_im_buffer, action_buffer, args, keypoint_tracker=None):
         if args.kp3d:
             scene_pcds_worldframe = [preprocess_rgb(obs.pcd_worldframe, crop_size=args.crop_size) for obs in obs_im_buffer[-2:]]
             tracked_keypoints_ij_scaled = (tracked_keypoints_ij * args.crop_size).astype(np.int64)
-            tracked_keypoints_ij_scaled[tracked_keypoints_ij_scaled == args.crop_size] = args.crop_size - 1
+            tracked_keypoints_ij_scaled[tracked_keypoints_ij_scaled >= args.crop_size] = args.crop_size - 1
             tracked_keypoints_loc = np.stack(
                 [pcd[ij[:, 1], ij[:, 0]] for pcd, ij in zip(scene_pcds_worldframe, tracked_keypoints_ij_scaled)]
             )
@@ -156,10 +157,6 @@ def main(args):
     obs_im_buffer: list[RGBDObservation] = [rgbd_observation, rgbd_observation]
 
     if args.kp2d or args.kp3d:
-        # extrinsics = np.array([[ 0.0024531 ,  0.55724814, -0.8303424 ,  1.11168072],
-        #    [ 0.99965826,  0.02024397,  0.01653918, -0.38456383],
-        #    [ 0.02602586, -0.83009921, -0.55700804,  0.3821937 ],
-        #    [ 0.        ,  0.        ,  0.        ,  1.        ]])
         target_object_mask = perception_interface.get_object_mask(obs_im_buffer[-1], 'apple')
         target_object_mask = cv2.erode(target_object_mask.astype(np.uint8), np.ones((5, 5), np.uint8), iterations=1).astype(bool)
         valid_points_yx = np.argwhere(target_object_mask)
@@ -226,7 +223,7 @@ def main(args):
                         prev_action = result['prev_action']
                     action_chunk = result['action'][0].detach().to('cpu').numpy()
                     print('Inference latency:', time.time() - s)
-                    # print(action_chunk)
+                    print(action_chunk)
 
                 if action_10d_prev is None:
                     action_10d_prev = action_chunk[0]
@@ -236,16 +233,18 @@ def main(args):
             # Select current action to execute from chunk
             action_10d = pred_action_chunk_10d[actions_from_chunk_completed]
             if np.allclose(action_10d[:-1], 0, atol=0.03):
+                print(f'Action is {action_10d}.\nEpoch end. Stop execution.')
                 break
             actions_from_chunk_completed += 1
 
             osc_pose_target = get_mat4_from_9d(action_10d[: 9])
-            if action_10d[-1].item() < gripper_open_width and action_10d[-1].item() < action_10d_prev[-1].item():
-                closing_gripper = True
-            elif action_10d[-1].item() > gripper_open_width and action_10d[-1].item() > action_10d_prev[-1].item():
-                closing_gripper = False
-            else:
-                closing_gripper = None
+            if actions_from_chunk_completed == 1:
+                if action_buffer[-1]['gripper_state'].reshape(-1)[0] > gripper_open_width and (pred_action_chunk_10d[-1][-1] - action_buffer[-1]['gripper_state'].reshape(-1)[0]) < -gripper_valid_change_delta:
+                    closing_gripper = True
+                elif action_buffer[-1]['gripper_state'].reshape(-1)[0] < gripper_open_width and (pred_action_chunk_10d[-1][-1] - action_buffer[-1]['gripper_state'].reshape(-1)[0]) > gripper_valid_change_delta:
+                    closing_gripper = False
+                else:
+                    closing_gripper = None
 
             robot_interface.execute_cartesian_impedance_path(
                 [osc_pose_target],
