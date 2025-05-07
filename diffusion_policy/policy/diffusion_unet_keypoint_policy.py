@@ -82,6 +82,27 @@ class KpEncoder(robomimic.models.base_nets.Module):
         return [self.emb_dim]
 
 
+class AgentPosEncoder(robomimic.models.base_nets.Module):
+    def __init__(self, agent_pos_emb_dim=32):
+        """
+        Simple MLP stacks to encode keypoint features and positions.
+        """
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(10, agent_pos_emb_dim),
+            nn.ReLU(),
+            nn.Linear(agent_pos_emb_dim, agent_pos_emb_dim),
+        )
+        self.agent_pos_emb_dim = agent_pos_emb_dim
+
+    def forward(self, x):
+        return self.net(x)
+
+    def output_shape(self, input_shape=None):
+        # To make it an instance of robomimic.models.base_nets.Module
+        return [self.agent_pos_emb_dim]
+
+
 class DiffusionUnetKeypointPolicy(BaseImagePolicy):
     def __init__(self,
             shape_meta: dict,
@@ -103,6 +124,7 @@ class DiffusionUnetKeypointPolicy(BaseImagePolicy):
             cond_predict_scale=True,
             obs_encoder_group_norm=False,
             eval_fixed_crop=False,
+            encode_agent_pos=False,
             # parameters passed to step
             **kwargs):
         super().__init__()
@@ -122,6 +144,8 @@ class DiffusionUnetKeypointPolicy(BaseImagePolicy):
         for key, attr in obs_shape_meta.items():
             if key == 'keypoint':
                 # Don't put in in the obs_config passing to robomimic
+                continue
+            if encode_agent_pos and key == 'agent_pos':
                 continue
             shape = attr['shape']
             obs_key_shapes[key] = list(shape)
@@ -199,6 +223,9 @@ class DiffusionUnetKeypointPolicy(BaseImagePolicy):
             keypoint_squash_method=keypoint_squash_method
         )
 
+        if encode_agent_pos:
+            agent_pos_encoder = AgentPosEncoder()
+
         del obs_encoder.obs_shapes['image']
         del obs_encoder.obs_nets_classes['image']
         del obs_encoder.obs_nets_kwargs['image']
@@ -214,6 +241,14 @@ class DiffusionUnetKeypointPolicy(BaseImagePolicy):
             net_kwargs=None,
             net=obs_kp_encoder,
         )
+        if encode_agent_pos:
+            obs_encoder.register_obs_key(
+                name='agent_pos',
+                shape=(10, ),
+                net_class=None,
+                net_kwargs=None,
+                net=agent_pos_encoder,
+            )
         obs_encoder._locked = True  # hack
 
         # create diffusion model
