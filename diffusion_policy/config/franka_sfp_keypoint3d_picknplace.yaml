@@ -52,6 +52,7 @@ keypoint_featnpos_dim: 4
 use_3d_keypoint: true
 policy:
   _target_: diffusion_policy.policy.sfp_unet_keypoint_policy.SFPUnetKeypointPolicy
+  encode_agent_pos: false #added for agent pos
   k: 0 #added
   use_action_traj: true #added
   robomimic: true #added
@@ -110,7 +111,7 @@ task:
     pad_before: 1
     seed: 42
     val_ratio: 0.02
-    zarr_path: data/franka_pick_kp3d_v6.zarr
+    zarr_path: data/franka_pick_kp3d_v12.zarr
     use_3d_keypoint: ${use_3d_keypoint}
   image_shape:
   - 3
@@ -144,7 +145,7 @@ training:
   seed: 42
   tqdm_interval_sec: 1.0
   use_ema: true
-  val_every: 1
+  val_every: 50
   x_t_sigma: 0.2 # added
 val_dataloader:
   batch_size: 256
