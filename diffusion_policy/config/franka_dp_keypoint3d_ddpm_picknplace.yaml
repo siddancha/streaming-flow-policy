@@ -55,9 +55,10 @@ policy:
   diffusion_step_embed_dim: 128
   keypoint_num: 10
   keypoint_feat_dim: 1
-  keypoint_emb_dim: 64
+  keypoint_emb_dim: 128
   keypoint_featnpos_dim: ${keypoint_featnpos_dim}
   keypoint_squash_method: concat
+  encode_agent_pos: False
   down_dims:
   - 512
   - 1024
