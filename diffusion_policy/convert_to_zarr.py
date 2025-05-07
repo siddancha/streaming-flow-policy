@@ -61,7 +61,7 @@ def get_validstep_ids(traj_qpos, valid_delta=8e-3) -> list:
 
 def main():
     data_folders = ['/home/xiaolinf/002-franka-picknplace/', '/data3/xiaolinf/franka_pick/']
-    zarr_save_path = 'data/franka_pick_kp3d_v5.zarr'
+    zarr_save_path = 'data/franka_pick_kp3d_v7.zarr'
     target_keypoints_num = 10
     crop_size = 256
     vis = False
@@ -83,7 +83,7 @@ def main():
         print(f'Data loaded. {len(raw_data["trajectory"])} steps')
         onetraj_rgb, onetraj_pcd, onetraj_state_v1 = [], [], []
 
-        valid_step_ids = get_validstep_ids(np.asarray([step['robot']['qpos'] for step in raw_data['trajectory']]))
+        valid_step_ids = [i for i in range(len(raw_data['trajectory']))] # get_validstep_ids(np.asarray([step['robot']['qpos'] for step in raw_data['trajectory']]))
         valid_trajectory = np.take(raw_data['trajectory'], valid_step_ids, axis=0)
         print(f'{len(valid_trajectory)} valid steps after truncating')
         print(f'valid idx {np.array(valid_step_ids)}')
