@@ -175,6 +175,7 @@ def plot_probability_density_and_streamlines_with_animated_trajectories(
         alpha: float=0.5,
         ode_steps: int=1000,
         num_frames: int = 1,
+        circle_radius: float=0,
         dpi: int = 120,
     ) -> List[np.ndarray]:
     ts = torch.linspace(0, 1, 200, dtype=torch.double)  # (T,)
@@ -202,24 +203,32 @@ def plot_probability_density_and_streamlines_with_animated_trajectories(
 
     # Create a list to store the images
     frames = []
+    
+    # Initialize the lines and points
     traj_lines: List[plt.Line2D] = []
+    current_points: List[plt.PathCollection] = []
+    for traj, color in zip(list_traj, colors):
+        traj_line = ax.plot([], [], color=color, linewidth=linewidth, alpha=alpha)[0]
+        traj_lines.append(traj_line)
+        point = ax.scatter([], [], color='red', s=circle_radius, zorder=3)
+        current_points.append(point)
     
     # Create a copy of the figure for each frame
     for frame in range(num_frames):
         # Calculate current time
         current_t = (frame + 1) / num_frames
         
-        # Clear previous trajectories
-        for traj_line in traj_lines:
-            traj_line.remove()
-        traj_lines.clear()
-
-        # Plot trajectories up to current time
-        for traj, color in zip(list_traj, colors):
+        # Update trajectories and points
+        for traj, traj_line, point in zip(list_traj, traj_lines, current_points):
             t_points = np.linspace(0, current_t, num_frames)
             x_points = traj.vector_values(t_points)[0]
-            traj_line = ax.plot(x_points, t_points, color=color, linewidth=linewidth, alpha=alpha)[0]  # Get first Line2D object
-            traj_lines.append(traj_line)
+            
+            # Update line data
+            traj_line.set_data(x_points, t_points)
+            
+            # Update point position
+            current_x, current_t = x_points[-1], t_points[-1]
+            point.set_offsets([[current_x, current_t]])
         
         # Save figure to buffer and convert to array
         image = jviz.GetNumpyImageFromMatplotlibAxis(ax, dpi=dpi, pad_inches=0.1)
