@@ -58,6 +58,7 @@ policy:
   keypoint_emb_dim: 128
   keypoint_featnpos_dim: ${keypoint_featnpos_dim}
   keypoint_squash_method: concat
+  use_v2_kp_encoder: false
   encode_agent_pos: False
   down_dims:
   - 512

@@ -21,40 +21,69 @@ from diffusion_policy.common.pytorch_util import dict_apply, replace_submodules
 
 
 class KpEncoder(robomimic.models.base_nets.Module):
-    def __init__(self, keypoint_pos_dim, in_dim, emb_dim, n_kp=8, keypoint_squash_method='concat'):
+    def __init__(self, keypoint_pos_dim, in_dim, emb_dim, n_kp=8, keypoint_squash_method='concat', use_v2=False):
         """
         Simple MLP stacks to encode keypoint features and positions.
         """
         super().__init__()
-        # TODO: can also use sum or mean
-        self.encode_posfirst = nn.Sequential(
-            nn.Linear(keypoint_pos_dim, emb_dim),
-            nn.ReLU(),
-            nn.Linear(emb_dim, emb_dim // 2)
-        )
-        self.encode_feat = nn.Sequential(
-            nn.Linear(in_dim, emb_dim),
-            nn.ReLU(),
-            nn.Linear(emb_dim, emb_dim),
-        )
-        self.encode_pos = nn.Sequential(
-            nn.Linear(emb_dim + emb_dim // 2, emb_dim * 2),
-            nn.ReLU(),
-            nn.Linear(emb_dim * 2, emb_dim * 2),
-            nn.ReLU(),
-            nn.Linear(emb_dim * 2, emb_dim),
-        )
-        if keypoint_squash_method == 'concat':
-            multiply_factor = n_kp
+        if use_v2:
+            self.encode_posfirst = nn.Sequential(
+                nn.Linear(keypoint_pos_dim, emb_dim),
+                nn.ReLU(),
+                nn.Linear(emb_dim, emb_dim)
+            )
+            self.encode_feat = nn.Sequential(
+                nn.Linear(in_dim, emb_dim),
+                nn.ReLU(),
+                nn.Linear(emb_dim, emb_dim // 4),
+            )
+            self.encode_pos = nn.Sequential(
+                nn.Linear(emb_dim + emb_dim // 4, emb_dim * 2),
+                nn.ReLU(),
+                nn.Linear(emb_dim * 2, emb_dim),
+                # nn.ReLU(),
+                # nn.Linear(emb_dim * 2, emb_dim),
+            )
+            if keypoint_squash_method == 'concat':
+                multiply_factor = n_kp
+            else:
+                multiply_factor = 1
+            self.out = nn.Sequential(
+                nn.Linear(emb_dim * multiply_factor, emb_dim),
+                nn.ReLU(),
+                nn.Linear(emb_dim, emb_dim),
+                # nn.ReLU(),
+                # nn.Linear(emb_dim, emb_dim),
+            )
         else:
-            multiply_factor = 1
-        self.out = nn.Sequential(
-            nn.Linear(emb_dim * multiply_factor, emb_dim),
-            nn.ReLU(),
-            nn.Linear(emb_dim, emb_dim),
-            nn.ReLU(),
-            nn.Linear(emb_dim, emb_dim),
-        )
+            self.encode_posfirst = nn.Sequential(
+                nn.Linear(keypoint_pos_dim, emb_dim),
+                nn.ReLU(),
+                nn.Linear(emb_dim, emb_dim // 2)
+            )
+            self.encode_feat = nn.Sequential(
+                nn.Linear(in_dim, emb_dim),
+                nn.ReLU(),
+                nn.Linear(emb_dim, emb_dim),
+            )
+            self.encode_pos = nn.Sequential(
+                nn.Linear(emb_dim + emb_dim // 2, emb_dim * 2),
+                nn.ReLU(),
+                nn.Linear(emb_dim * 2, emb_dim * 2),
+                nn.ReLU(),
+                nn.Linear(emb_dim * 2, emb_dim),
+            )
+            if keypoint_squash_method == 'concat':
+                multiply_factor = n_kp
+            else:
+                multiply_factor = 1
+            self.out = nn.Sequential(
+                nn.Linear(emb_dim * multiply_factor, emb_dim),
+                nn.ReLU(),
+                nn.Linear(emb_dim, emb_dim),
+                nn.ReLU(),
+                nn.Linear(emb_dim, emb_dim),
+            )
         self.in_dim = in_dim
         self.emb_dim = emb_dim
         self.n_kp = n_kp
@@ -121,6 +150,7 @@ class DiffusionUnetKeypointPolicy(BaseImagePolicy):
             keypoint_squash_method='concat',
             keypoint_feat_dim=2,
             keypoint_emb_dim=128,
+            use_v2_kp_encoder=False,
             cond_predict_scale=True,
             obs_encoder_group_norm=False,
             eval_fixed_crop=False,
@@ -220,7 +250,8 @@ class DiffusionUnetKeypointPolicy(BaseImagePolicy):
             in_dim=keypoint_feat_dim,
             emb_dim=keypoint_emb_dim,
             n_kp=keypoint_num,
-            keypoint_squash_method=keypoint_squash_method
+            keypoint_squash_method=keypoint_squash_method,
+            use_v2=use_v2_kp_encoder,
         )
 
         if encode_agent_pos:
