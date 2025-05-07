@@ -111,8 +111,10 @@ def main(args):
     # load checkpoint
     payload = torch.load(open(args.ckpt_path, 'rb'), pickle_module=dill)
     cfg = payload['cfg']
-    if 'workspace.train_sfp_unet' in cfg._target_:
+    if 'workspace.train_sfp_unet_realworld_workspace' in cfg._target_:
         workspace_cls_name = cfg._target_.replace('train_sfp_unet_realworld_workspace.', '')
+    elif 'train_sfp_unet_realworld_workspace' in cfg._target_:
+        workspace_cls_name = cfg._target_.replace('train_sfp_unet_realworld_workspace', 'workspace')
     else:
         workspace_cls_name = cfg._target_
     print(workspace_cls_name)
@@ -239,6 +241,7 @@ def main(args):
 
             osc_pose_target = get_mat4_from_9d(action_10d[: 9])
             if actions_from_chunk_completed == 1:
+                print(f"Gripper state {action_buffer[-1]['gripper_state'].reshape(-1)[0]}")
                 if action_buffer[-1]['gripper_state'].reshape(-1)[0] > gripper_open_width and (pred_action_chunk_10d[-1][-1] - action_buffer[-1]['gripper_state'].reshape(-1)[0]) < -gripper_valid_change_delta:
                     closing_gripper = True
                 elif action_buffer[-1]['gripper_state'].reshape(-1)[0] < gripper_open_width and (pred_action_chunk_10d[-1][-1] - action_buffer[-1]['gripper_state'].reshape(-1)[0]) > gripper_valid_change_delta:

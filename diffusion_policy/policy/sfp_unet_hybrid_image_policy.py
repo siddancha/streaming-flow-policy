@@ -282,7 +282,7 @@ class SFPUnetHybridImagePolicy(BaseImagePolicy):
             if not self.use_action_traj:
                 x_test = nobs['agent_pos'][:,-1:,:] # agent position nobs (56, 2, 2) -> x_test (56, 1, 2)
             elif prev_action is None:
-                if self.robomimic:
+                if False:#self.robomimic:
                     pass ### TODO: add robomimic obs_to_action
                     # unnorm_x_test = self.robomimic_obs_to_action(obs[:,-1:,:]) #28, 1, 10
                 else:

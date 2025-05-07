@@ -288,6 +288,7 @@ class SFPUnetKeypointPolicy(BaseImagePolicy):
                     pred_v =noise_pred_net(sample=prev_x,timestep=t.repeat(B).to("cuda"), global_cond=global_cond) #[56, 1, 2] # previously had global_cond.flatten(start_dim=1) -> not needed
                     if self.gripper_normalize != 1: # unnormalized gripper velocity
                         pred_v[:, :, -1] = pred_v[:, :, -1] * self.gripper_normalize
+                    # print('pred_v', pred_v[0,0,:])
                     prev_x = prev_x + pred_v * 1/(self.horizon * self.unit_int_steps) # [56, 1, 2]
                     ## TODO: check if the gripper is the in the last dim
                     prev_x[:, :, -1] = prev_x[:, :, -1].clamp(0, 0.08) # clamp the gripper value prev_x[0, :, -1] -> dim 2, -1 idx
