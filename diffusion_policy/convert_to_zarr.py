@@ -143,7 +143,7 @@ def main():
         for onetraj_state in onetrajs_state:
             # TODO: use next state for now. can be OSC cmd action.
             onetraj_action = onetraj_state[1:]
-            onetraj_action.append(np.zeros(10))
+            onetraj_action.append(onetraj_action[-1])
 
             if vis:
                 # import trimesh
