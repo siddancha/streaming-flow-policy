@@ -13,7 +13,14 @@ dataloader:
   persistent_workers: false
   pin_memory: true
   shuffle: true
+val_dataloader:
+  batch_size: 1024
+  num_workers: 8
+  persistent_workers: false
+  pin_memory: true
+  shuffle: false
 dataset_obs_steps: 2
+ckpt_freq: 20
 ema:
   _target_: diffusion_policy.model.diffusion.ema_model.EMAModel
   inv_gamma: 1.0
@@ -132,7 +139,7 @@ task:
         - ${keypoint_featnpos_dim}
         type: rgb
 training:
-  checkpoint_every: 100
+  checkpoint_every: ${ckpt_freq}
   debug: false
   device: cuda:0
   gradient_accumulate_every: 1
@@ -147,10 +154,4 @@ training:
   seed: 42
   tqdm_interval_sec: 1.0
   use_ema: true
-  val_every: 100
-val_dataloader:
-  batch_size: 1024
-  num_workers: 8
-  persistent_workers: false
-  pin_memory: true
-  shuffle: false
+  val_every: ${ckpt_freq}
