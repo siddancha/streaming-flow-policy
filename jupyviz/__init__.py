@@ -445,3 +445,16 @@ class iview:
 
 # endregion
 # =============================================================================
+# Utility functions
+# =============================================================================
+
+def GetNumpyImageFromMatplotlibAxis(ax: plt.Axes, dpi, pad_inches: float=0.0) -> np.ndarray:
+    buf = BytesIO()
+    ax.figure.savefig(buf, format='png', bbox_inches='tight', dpi=dpi,pad_inches=pad_inches)
+    buf.seek(0)
+    image = np.array(PilImage.open(buf))  # This gives uint8 directly
+    buf.close()
+    return image
+
+# endregion
+# =============================================================================

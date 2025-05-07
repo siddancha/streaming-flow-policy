@@ -1,4 +1,5 @@
 from typing import List
+import jupyviz as jviz
 import numpy as np
 import matplotlib.pyplot as plt
 import torch; torch.set_default_dtype(torch.double)
@@ -127,7 +128,7 @@ def plot_probability_density_and_streamlines(
 
     return heatmap
 
-def plot_probability_density_with_trajectories(
+def plot_probability_density_with_static_trajectories(
         fp: StreamingFlowPolicyCSpace,
         ax: plt.Axes,
         x_starts: List[float | None],
@@ -164,3 +165,64 @@ def plot_probability_density_with_trajectories(
     ax.set_title('Trajectories sampled from flow')
 
     return heatmap
+
+def plot_probability_density_and_streamlines_with_animated_trajectories(
+        fp: StreamingFlowPolicyCSpace,
+        ax: plt.Axes,
+        x_starts: List[float | None],
+        colors: List[str] | None = None,
+        linewidth: float=1,
+        alpha: float=0.5,
+        ode_steps: int=1000,
+        num_frames: int = 1,
+        dpi: int = 120,
+    ) -> List[np.ndarray]:
+    ts = torch.linspace(0, 1, 200, dtype=torch.double)  # (T,)
+    xs = torch.linspace(-1, 1, 200, dtype=torch.double)  # (X,)
+    ts, xs = torch.meshgrid(ts, xs, indexing='ij')  # (T, X)
+
+    plot_probability_density_and_streamlines(fp, ax, num_points=200)
+
+    if colors is None:
+        colors = ['red'] * len(x_starts)
+
+    # Replace None with random samples from N(0, σ₀²)
+    x_starts = [
+        x_start if x_start is not None else np.random.randn() * fp.σ0
+        for x_start in x_starts
+    ]
+    x_starts = torch.tensor(x_starts, dtype=torch.double).unsqueeze(-1)  # (L, 1)
+    list_traj = fp.ode_integrate(x_starts, num_steps=ode_steps)
+    ts = np.linspace(0, 1, 200)  # (T,)
+
+    ax.tick_params(axis='both', which='both', length=0, labelbottom=False, labelleft=False)
+    ax.set_xlim(-1, 1)
+    ax.set_ylim(0, 1)
+    ax.set_title('Trajectories sampled from flow')
+
+    # Create a list to store the images
+    frames = []
+    traj_lines: List[plt.Line2D] = []
+    
+    # Create a copy of the figure for each frame
+    for frame in range(num_frames):
+        # Calculate current time
+        current_t = (frame + 1) / num_frames
+        
+        # Clear previous trajectories
+        for traj_line in traj_lines:
+            traj_line.remove()
+        traj_lines.clear()
+
+        # Plot trajectories up to current time
+        for traj, color in zip(list_traj, colors):
+            t_points = np.linspace(0, current_t, num_frames)
+            x_points = traj.vector_values(t_points)[0]
+            traj_line = ax.plot(x_points, t_points, color=color, linewidth=linewidth, alpha=alpha)[0]  # Get first Line2D object
+            traj_lines.append(traj_line)
+        
+        # Save figure to buffer and convert to array
+        image = jviz.GetNumpyImageFromMatplotlibAxis(ax, dpi=dpi, pad_inches=0.1)
+        frames.append(image)
+
+    return frames
