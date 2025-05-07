@@ -27,8 +27,9 @@ class FrankaPickKeypointDataset(BaseImageDataset):
         super().__init__()
         print('------------------- Dataset -------------------------')
         print(f'Loading FrankaImageDataset from {zarr_path}')
+        emplist = [] if use_3d_keypoint else ['keypoints_ij']
         self.replay_buffer = ReplayBuffer.copy_from_path(
-            zarr_path, keys=['keypoints_ij', 'keypoints_xyz', 'keypoints_visibility', 'state', 'action'])
+            zarr_path, keys=['keypoints_xyz', 'keypoints_visibility', 'state', 'action'] + emplist)
         val_mask = get_val_mask(
             n_episodes=self.replay_buffer.n_episodes,
             val_ratio=val_ratio,
@@ -101,11 +102,12 @@ class FrankaPickKeypointDataset(BaseImageDataset):
 
         if self.kp_augmentation:
             assert self.use_3d_keypoint
-            augment_range = np.array([0.15, 0.15, .05]) * 2
+            augment_range = np.array([0.15, 0.15, .01]) # * 2
             random_locshift_xyz = (np.random.rand(3) - 0.5) * augment_range
             keypoint_loc += random_locshift_xyz
             agent_pos[:, :3] += random_locshift_xyz
             action[:, :3] += random_locshift_xyz
+            # TODO: Mirror?
 
         data = {
             'obs': {
