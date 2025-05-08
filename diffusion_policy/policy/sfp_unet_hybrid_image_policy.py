@@ -73,6 +73,7 @@ class SFPUnetHybridImagePolicy(BaseImagePolicy):
             # parameters passed to step
             **kwargs):
         super().__init__()
+        self.streaming = True
 
         # parse shape_meta
         action_shape = shape_meta['action']['shape']
@@ -244,6 +245,16 @@ class SFPUnetHybridImagePolicy(BaseImagePolicy):
         self.gripper_normalize = gripper_normalize
         self.biased_prob = biased_prob
 
+        # cache for streaming prediction
+        self.obs_feature = None
+        self.current_t = 0
+        self.prev_action = None
+    
+    def reset_cache(self):
+        self.obs_feature = None
+        self.current_t = 0
+
+
     def set_n_action_int_steps(self, set_action_steps, set_int_steps):
         '''
         Set the number of action steps and update the time span and select action indices accordingly.
@@ -266,10 +277,7 @@ class SFPUnetHybridImagePolicy(BaseImagePolicy):
     
     # ========= inference  ============
     def get_traj(self,
-                 global_cond, #dictionary
-                 nobs, 
                  obs,
-                 prev_action = None,
                 **kwargs
             ):
             '''
@@ -279,72 +287,52 @@ class SFPUnetHybridImagePolicy(BaseImagePolicy):
             }
             '''
             noise_pred_net = self.model
-            if not self.use_action_traj:
-                x_test = nobs['agent_pos'][:,-1:,:] # agent position nobs (56, 2, 2) -> x_test (56, 1, 2)
-            elif prev_action is None:
-                if self.robomimic:
-                    pass ### TODO: add robomimic obs_to_action
-                    # unnorm_x_test = self.robomimic_obs_to_action(obs[:,-1:,:]) #28, 1, 10
-                else:
-                    unnorm_x_test = obs['agent_pos'][:,-1:,:] 
+            if self.prev_action is None:
+                unnorm_x_test = obs['agent_pos'][:,-1:,:] 
                 x_test = self.normalizer['action'].normalize(unnorm_x_test) #normalize with action normalizer
             else:
-                x_test = prev_action 
-
-            # manual integration
-            traj_list = []
-            prev_x = x_test
-            with torch.no_grad():
-                for t in self.t_span:
-                    traj_list.append(prev_x)
-                    pred_v =noise_pred_net(sample=prev_x,timestep=t.repeat(x_test.shape[0]).to("cuda"), global_cond=global_cond) #[56, 1, 2] # previously had global_cond.flatten(start_dim=1) -> not needed
-                    prev_x = prev_x + pred_v * 1/(self.horizon * self.unit_int_steps) # [56, 1, 2]
-                    prev_x[:, :, -1] = prev_x[:, :, -1].clamp(0, 0.08)
-                    ## TODO: check robomimic code
-                    # if self.robomimic: # clamp for robomimic
-                    #     prev_x[:, :, -1] = prev_x[:, :, -1].clamp(-1.0, 1.0) # clamp the gripper value prev_x[0, :, -1] -> dim 2, -1 idx
-            traj = torch.stack(traj_list, dim=0)  
-
-            return traj #[9, 56, 1, 2]
+                x_test = self.prev_action 
+            if self.current_t==0:
+                return x_test.unsqueeze(0)
+            #TODO: current code only has unit_int_steps = 1, need to change code to support unit_int_steps>1
+            t = self.current_t - 1/self.horizon # prev_t
+            global_cond = self.obs_feature
+            pred_v =noise_pred_net(sample=prev_x,timestep=t.repeat(x_test.shape[0]).to("cuda"), global_cond=global_cond) # [B, 1, action_dim]  [56, 1, 2]
+            prev_x = prev_x + pred_v * 1/(self.horizon * self.unit_int_steps) # [B, 1, action_dim]  [56, 1, 2]
+            prev_x[:, :, -1] = prev_x[:, :, -1].clamp(0, 0.08)
+            return prev_x.unsqueeze(0) #[1, B, 1, action_dim] 
     
-    def predict_action(self, obs_dict: Dict[str, torch.Tensor], prev_action = None) -> Dict[str, torch.Tensor]:
+    def predict_action(self, obs_dict: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
         """
         obs_dict: must include "obs" key
         result: must include "action" key
-        """
-        # normalize input
-        nobs = self.normalizer.normalize(obs_dict)
-        # {
-        # 'image': torch.Size([56, 2, 3, 96, 96]),
-        # 'agent_pos': torch.Size([56, 2, 2])
-        # }
-        value = next(iter(nobs.values()))
-        B, To = value.shape[:2]
-        To = self.n_obs_steps
-
-
-        this_nobs = dict_apply(nobs, lambda x: x[:,:To,...].reshape(-1,*x.shape[2:])) #torch.Size([112, 3, 96, 96]) torch.Size([112, 2])
-        nobs_features = self.obs_encoder(this_nobs) # [112, 66]
-        # reshape back to B, Do
-        global_cond = nobs_features.reshape(B, -1) #[56, 132]
+        """  
+        if self.obs_feature is None:
+            nobs = self.normalizer.normalize(obs_dict)
+            value = next(iter(nobs.values()))
+            B, To = value.shape[:2]
+            To = self.n_obs_steps
+            this_nobs = dict_apply(nobs, lambda x: x[:,:To,...].reshape(-1,*x.shape[2:])) #torch.Size([112, 3, 96, 96]) torch.Size([112, 2])
+            nobs_features = self.obs_encoder(this_nobs) # [112, 66]
+            # reshape back to B, Do
+            global_cond = nobs_features.reshape(B, -1) #[56, 132]
+            self.obs_feature = global_cond
         
-        naction_pred = self.get_traj(global_cond, nobs, obs_dict, prev_action) #[8, 56, 1, 2]
+        naction_pred = self.get_traj(obs_dict) #[8, 56, 1, 2]
         # print('naction_pred', naction_pred[:,0,...])
-        # use the last two dim of obs normalizer s.t. it's consistent with training normalization
-        if self.use_action_traj:
-            action_pred = self.normalizer['action'].unnormalize(naction_pred) # [9, 56, 1, 2]
-        else:
-            action_pred = self.normalizer['agent_pos'].unnormalize(naction_pred, # agent_pos [8, 56, 1, 2]
-                        obs_for_action=True, action_idx_start = -self.action_dim) # Push T: action_idx_start = -2
-        prev_action = naction_pred[-1] # save a_8, last action as memory var [9, 56, 1, 2] -> #[56, 1, 2]
-        action = action_pred[self.select_action_indices] # [9, 56, 1, 2] -> [8, 56, 1, 2] select action indices - for use_action_traj case, select first 8
-        action  = action.permute(1, 0, 2, 3).squeeze(2) #[56, 8, 2] 
+        action_pred = self.normalizer['action'].unnormalize(naction_pred) # [9, 56, 1, 2]
+        self.current_t += 1/self.horizon
+        self.prev_action = naction_pred[-1] # save a_8, last action as memory var [9, 56, 1, 2] -> #[56, 1, 2]
+        #last action of the chunk, need to predict one more action for the start of next chunk
+        if self.current_t == self.n_action_steps/self.horizon: #8/16
+            naction_pred = self.get_traj(obs_dict)
+            action_pred = self.normalizer['action'].unnormalize(naction_pred) # [1, 56, 1, 2]
+            self.prev_action = naction_pred[-1]
+        action  = action_pred.permute(1, 0, 2, 3).squeeze(2) #[56, 8, 2] 
         # print('action', naction_pred[self.select_action_indices][:, 0, 0,...])
         # print('prev_action', prev_action[0,...])
         result = {
             'action': action,
-            'action_pred': action_pred,
-            'prev_action': prev_action, 
         }
         
         return result
