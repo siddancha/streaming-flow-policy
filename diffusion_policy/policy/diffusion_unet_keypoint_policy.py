@@ -1,15 +1,15 @@
 from typing import Dict
-import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from einops import rearrange, reduce
+from einops import reduce
 from diffusers.schedulers.scheduling_ddpm import DDPMScheduler
 
 from diffusion_policy.model.common.normalizer import LinearNormalizer
 from diffusion_policy.model.diffusion.conditional_unet1d import ConditionalUnet1D
 from diffusion_policy.model.diffusion.mask_generator import LowdimMaskGenerator
 from diffusion_policy.common.robomimic_config_util import get_robomimic_config
+from diffusion_policy.model.vision.net_utils import AgentPosEncoder
 from diffusion_policy.policy.base_image_policy import BaseImagePolicy
 from robomimic.algo import algo_factory
 from robomimic.algo.algo import PolicyAlgo
@@ -109,27 +109,6 @@ class KpEncoder(robomimic.models.base_nets.Module):
     def output_shape(self, input_shape=None):
         # To make it an instance of robomimic.models.base_nets.Module
         return [self.emb_dim]
-
-
-class AgentPosEncoder(robomimic.models.base_nets.Module):
-    def __init__(self, agent_pos_emb_dim=32):
-        """
-        Simple MLP stacks to encode keypoint features and positions.
-        """
-        super().__init__()
-        self.net = nn.Sequential(
-            nn.Linear(10, agent_pos_emb_dim),
-            nn.ReLU(),
-            nn.Linear(agent_pos_emb_dim, agent_pos_emb_dim),
-        )
-        self.agent_pos_emb_dim = agent_pos_emb_dim
-
-    def forward(self, x):
-        return self.net(x)
-
-    def output_shape(self, input_shape=None):
-        # To make it an instance of robomimic.models.base_nets.Module
-        return [self.agent_pos_emb_dim]
 
 
 class DiffusionUnetKeypointPolicy(BaseImagePolicy):

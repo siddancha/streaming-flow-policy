@@ -7,8 +7,9 @@ checkpoint:
     k: 5
     mode: min
     monitor_key: val_loss
+batch_size: 128
 dataloader:
-  batch_size: 64
+  batch_size: ${batch_size}
   num_workers: 8
   persistent_workers: false
   pin_memory: true
@@ -50,6 +51,7 @@ past_action_visible: false
 policy:
   _target_: diffusion_policy.policy.diffusion_unet_hybrid_image_policy.DiffusionUnetHybridImagePolicy
   cond_predict_scale: true
+  encode_agent_pos: False
   crop_shape:
   - 224
   - 224
@@ -127,7 +129,7 @@ task:
     pad_before: 1
     seed: 42
     val_ratio: 0.02
-    zarr_path: data/franka_pick_kp3d_v3.zarr
+    zarr_path: data/franka_pick_kp3d_v7.zarr
   image_shape:
   - 3
   - 256
@@ -166,7 +168,7 @@ training:
   use_ema: true
   val_every: 50
 val_dataloader:
-  batch_size: 64
+  batch_size: ${batch_size}
   num_workers: 8
   persistent_workers: false
   pin_memory: true
