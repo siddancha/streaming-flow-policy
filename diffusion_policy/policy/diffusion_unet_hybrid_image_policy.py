@@ -17,6 +17,7 @@ import robomimic.utils.obs_utils as ObsUtils
 import robomimic.models.base_nets as rmbn
 import diffusion_policy.model.vision.crop_randomizer as dmvc
 from diffusion_policy.common.pytorch_util import dict_apply, replace_submodules
+from diffusion_policy.model.vision.net_utils import AgentPosEncoder
 
 
 class DiffusionUnetHybridImagePolicy(BaseImagePolicy):
@@ -36,6 +37,7 @@ class DiffusionUnetHybridImagePolicy(BaseImagePolicy):
             cond_predict_scale=True,
             obs_encoder_group_norm=False,
             eval_fixed_crop=False,
+            encode_agent_pos=False,
             # parameters passed to step
             **kwargs):
         super().__init__()
@@ -53,6 +55,9 @@ class DiffusionUnetHybridImagePolicy(BaseImagePolicy):
         }
         obs_key_shapes = dict()
         for key, attr in obs_shape_meta.items():
+            if encode_agent_pos and key == 'agent_pos':
+                continue
+
             shape = attr['shape']
             obs_key_shapes[key] = list(shape)
 
@@ -125,6 +130,19 @@ class DiffusionUnetHybridImagePolicy(BaseImagePolicy):
                     pos_enc=x.pos_enc
                 )
             )
+
+        if encode_agent_pos:
+            agent_pos_encoder = AgentPosEncoder()
+            obs_encoder._locked = False # hack
+            if encode_agent_pos:
+                obs_encoder.register_obs_key(
+                    name='agent_pos',
+                    shape=(10, ),
+                    net_class=None,
+                    net_kwargs=None,
+                    net=agent_pos_encoder,
+                )
+            obs_encoder._locked = True  # hack
 
         # create diffusion model
         obs_feature_dim = obs_encoder.output_shape()[0]
