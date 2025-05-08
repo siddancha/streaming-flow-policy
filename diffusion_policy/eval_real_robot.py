@@ -28,7 +28,7 @@ from diffusion_policy.hw_utils.rotation_utils import compute_rotation_matrix_fro
 CONTROL_FREQUENCY = 10 # Default 20 Hz
 VERBOSE_TIME_PERF = True #False
 gripper_open_width = 0.079
-gripper_valid_change_delta = 0.003
+gripper_valid_change_delta = 0.005
 
 def get_obs_dict(obs_im_buffer, action_buffer, args, keypoint_tracker=None):
     if VERBOSE_TIME_PERF:
@@ -135,9 +135,9 @@ def main(args):
         policy.eval().to(device)
     else:
         raise RuntimeError("Unsupported policy type: ", cfg.name)
-    
+
     # [SFP] set action horizon and num int steps
-    if hasattr(policy, 'set_n_action_int_steps') and callable(getattr(policy, 'set_n_action_int_steps', None)): 
+    if hasattr(policy, 'set_n_action_int_steps') and callable(getattr(policy, 'set_n_action_int_steps', None)):
             policy.set_n_action_int_steps(args.open_loop_horizon, args.num_int_steps)
 
     camera_names = ['mount2']
@@ -206,42 +206,37 @@ def main(args):
             # Time elapse: 0.05 per if local_rs. 0.2 per if remote rs
             if hasattr(policy, "streaming") and policy.streaming:
                 policy.reset_cache() # reset obs_feature = None, t = 0
-                
+
                 with torch.no_grad():
                     obs_dict_np = get_obs_dict(obs_im_buffer, action_buffer, args, keypoint_tracker=keypoint_tracker)
                     obs_dict = dict_apply(obs_dict_np, lambda x: torch.from_numpy(x).unsqueeze(0).to(device))
-                
-                for i in policy.n_action_steps:
-                    # Send websocket request to policy server if it's time to predict a new chunk
-                    if actions_from_chunk_completed == 0 or actions_from_chunk_completed >= 1: #args.open_loop_horizon:
-                        actions_from_chunk_completed = 0
-                        with torch.no_grad(): 
-                            result = policy.predict_action(obs_dict)
-                            action_chunk = result['action'][0].detach().to('cpu').numpy()
-                        if action_10d_prev is None:
-                            action_10d_prev = action_chunk[0]
-                        # convert policy action to env actions
-                        pred_action_chunk_10d = action_chunk
-                        # Select current action to execute from chunk
-                    action_10d = pred_action_chunk_10d[actions_from_chunk_completed]
+
+                for i in range(policy.n_action_steps):
+                    with torch.no_grad():
+                        result = policy.predict_action(obs_dict)
+                        pred_action_chunk_10d = result['action'][0].detach().to('cpu').numpy()
+                    # Select current action to execute from chunk
+                    action_10d = pred_action_chunk_10d[0]
                     if np.allclose(action_10d[:-1], 0, atol=0.03):
                         break
-                    actions_from_chunk_completed += 1
                     osc_pose_target = get_mat4_from_9d(action_10d[: 9])
 
-                    if i==0: # decide gripper based on the first action vs the prev gripper action; same gripper command for the whole chunk
+                    if i == 0 and action_10d_prev is not None: # decide gripper based on the first action vs the prev gripper action; same gripper command for the whole chunk
                         if action_10d[-1].item() < gripper_open_width and action_10d[-1].item() < action_10d_prev[-1].item():
                             closing_gripper = True
                         elif action_10d[-1].item() > gripper_open_width and action_10d[-1].item() > action_10d_prev[-1].item():
                             closing_gripper = False
                         else:
                             closing_gripper = None
+                    else:
+                        closing_gripper = None
 
                     robot_interface.execute_cartesian_impedance_path(
                         [osc_pose_target],
                         gripper_isclose=closing_gripper,
                     )
-               
+                    action_10d_prev = action_10d.copy()
+
             else:
                 # Send websocket request to policy server if it's time to predict a new chunk
                 if actions_from_chunk_completed == 0 or actions_from_chunk_completed >= args.open_loop_horizon:
@@ -254,11 +249,11 @@ def main(args):
 
                         obs_dict = dict_apply(obs_dict_np, lambda x: torch.from_numpy(x).unsqueeze(0).to(device))
                         # result = policy.predict_action(obs_dict)
-                            
-                        
+
+
                         result = policy.predict_action(obs_dict)
                         # this action starts from the first obs step
-                        
+
                         action_chunk = result['action'][0].detach().to('cpu').numpy()
                         print('Inference latency:', time.time() - s)
                         # print(action_chunk)
@@ -267,31 +262,31 @@ def main(args):
                         action_10d_prev = action_chunk[0]
                     # convert policy action to env actions
                     pred_action_chunk_10d = action_chunk
-                
 
-            # Select current action to execute from chunk
-            action_10d = pred_action_chunk_10d[actions_from_chunk_completed]
-            if np.allclose(action_10d[:-1], 0, atol=0.03):
-                print(f'Action is {action_10d}.\nEpoch end. Stop execution.')
-                break
-            actions_from_chunk_completed += 1
 
-            osc_pose_target = get_mat4_from_9d(action_10d[: 9])
-            if actions_from_chunk_completed == 1:
-                print(f"Gripper state {action_buffer[-1]['gripper_state'].reshape(-1)[0]}")
-                if action_buffer[-1]['gripper_state'].reshape(-1)[0] > gripper_open_width and (pred_action_chunk_10d[-1][-1] - action_buffer[-1]['gripper_state'].reshape(-1)[0]) < -gripper_valid_change_delta:
-                    closing_gripper = True
-                elif action_buffer[-1]['gripper_state'].reshape(-1)[0] < gripper_open_width and (pred_action_chunk_10d[-1][-1] - action_buffer[-1]['gripper_state'].reshape(-1)[0]) > gripper_valid_change_delta:
-                    closing_gripper = False
-                else:
-                    closing_gripper = None
+                # Select current action to execute from chunk
+                action_10d = pred_action_chunk_10d[actions_from_chunk_completed]
+                if np.allclose(action_10d[:-1], 0, atol=0.03):
+                    print(f'Action is {action_10d}.\nEpoch end. Stop execution.')
+                    break
+                actions_from_chunk_completed += 1
 
-                robot_interface.execute_cartesian_impedance_path(
-                    [osc_pose_target],
-                    gripper_isclose=closing_gripper,
-                )
+                osc_pose_target = get_mat4_from_9d(action_10d[: 9])
+                if actions_from_chunk_completed == 1:
+                    print(f"Gripper state {action_buffer[-1]['gripper_state'].reshape(-1)[0]}")
+                    if action_buffer[-1]['gripper_state'].reshape(-1)[0] > gripper_open_width and (pred_action_chunk_10d[-1][-1] - action_buffer[-1]['gripper_state'].reshape(-1)[0]) < -gripper_valid_change_delta:
+                        closing_gripper = True
+                    elif action_buffer[-1]['gripper_state'].reshape(-1)[0] < gripper_open_width and (pred_action_chunk_10d[-1][-1] - action_buffer[-1]['gripper_state'].reshape(-1)[0]) > gripper_valid_change_delta:
+                        closing_gripper = False
+                    else:
+                        closing_gripper = None
 
-            action_10d_prev = action_10d
+                    robot_interface.execute_cartesian_impedance_path(
+                        [osc_pose_target],
+                        gripper_isclose=closing_gripper,
+                    )
+
+                action_10d_prev = action_10d
 
             # Sleep to match data collection control frequency. Jittering if not.
             elapsed_time = time.time() - start_time

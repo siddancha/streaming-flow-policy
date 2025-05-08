@@ -289,15 +289,15 @@ class SFPUnetHybridImagePolicy(BaseImagePolicy):
             noise_pred_net = self.model
             if self.prev_action is None:
                 unnorm_x_test = obs['agent_pos'][:,-1:,:] 
-                x_test = self.normalizer['action'].normalize(unnorm_x_test) #normalize with action normalizer
+                prev_x = self.normalizer['action'].normalize(unnorm_x_test) #normalize with action normalizer
             else:
-                x_test = self.prev_action 
+                prev_x = self.prev_action
             if self.current_t==0:
-                return x_test.unsqueeze(0)
+                return prev_x.unsqueeze(0)
             #TODO: current code only has unit_int_steps = 1, need to change code to support unit_int_steps>1
-            t = self.current_t - 1/self.horizon # prev_t
+            t = torch.tensor([self.current_t - 1/self.horizon]) # prev_t
             global_cond = self.obs_feature
-            pred_v =noise_pred_net(sample=prev_x,timestep=t.repeat(x_test.shape[0]).to("cuda"), global_cond=global_cond) # [B, 1, action_dim]  [56, 1, 2]
+            pred_v =noise_pred_net(sample=prev_x,timestep=t.repeat(prev_x.shape[0]).to("cuda"), global_cond=global_cond) # [B, 1, action_dim]  [56, 1, 2]
             prev_x = prev_x + pred_v * 1/(self.horizon * self.unit_int_steps) # [B, 1, action_dim]  [56, 1, 2]
             prev_x[:, :, -1] = prev_x[:, :, -1].clamp(0, 0.08)
             return prev_x.unsqueeze(0) #[1, B, 1, action_dim] 
