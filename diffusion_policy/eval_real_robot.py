@@ -135,7 +135,8 @@ def main(args):
         policy.eval().to(device)
     else:
         raise RuntimeError("Unsupported policy type: ", cfg.name)
-
+    if args.streaming:
+        policy.set_streaming()
     # [SFP] set action horizon and num int steps
     if hasattr(policy, 'set_n_action_int_steps') and callable(getattr(policy, 'set_n_action_int_steps', None)):
             policy.set_n_action_int_steps(args.open_loop_horizon, args.num_int_steps)
@@ -204,7 +205,8 @@ def main(args):
             obs_im_buffer.append(RGBDObservation(obs_rgb, obs_dep, obs_intrinsics, extrinsics))
             action_buffer.append(robot_interface.get_current_joint_states())
             # Time elapse: 0.05 per if local_rs. 0.2 per if remote rs
-            if hasattr(policy, "streaming") and policy.streaming:
+            if args.streaming and hasattr(policy, "streaming") and policy.streaming:
+                print('Using Streaming Mode')
                 policy.reset_cache() # reset obs_feature = None, t = 0
 
                 with torch.no_grad():
@@ -251,8 +253,11 @@ def main(args):
                         # result = policy.predict_action(obs_dict)
 
 
-                        result = policy.predict_action(obs_dict)
-                        # this action starts from the first obs step
+                        if hasattr(policy, "use_action_traj") and policy.use_action_traj: # if policy has attribute use_action_traj and it is True
+                            result = policy.predict_action(obs_dict, prev_action=prev_action)
+                            prev_action = result['prev_action']
+                        else:
+                            result = policy.predict_action(obs_dict)
 
                         action_chunk = result['action'][0].detach().to('cpu').numpy()
                         print('Inference latency:', time.time() - s)
@@ -315,6 +320,7 @@ if __name__ == '__main__':
     parser.add_argument('--keypoint_num', type=int, default=10, help='Number of keypoints to use in kp policy')
     parser.add_argument('--crop_size', type=int, default=256, help='Resize target size')
     parser.add_argument('--local_rs', action='store_true', help='RealSense connected to this machine directly')
+    parser.add_argument('--streaming', action='store_true', help='Use streaming action prediction')
     args = parser.parse_args()
     if args.kp2d or args.kp3d:
         from streaming_flow_policy.franka.keypoint_tracker import Tracker
