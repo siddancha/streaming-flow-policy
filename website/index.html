@@ -515,6 +515,9 @@ div.underwater-results-carousel .slider-navigation-previous {
                 <li class="nav-item"></li>
                     <a class="nav-link" href="#caveats">Caveats</a>
                 </li>
+                <li class="nav-item"></li>
+                    <a class="nav-link" href="#real-world">Real-world</a>
+                </li>
             <!-- <li class="nav-item">
                 <a class="nav-link" href="#paper">Paper</a>
             </li> -->
@@ -938,6 +941,41 @@ div.underwater-results-carousel .slider-navigation-previous {
         While streaming flow policy cannot capture global constraints across timesteps, it can still capture local constraints such as arbitrary positions constraints and convex velocity constraints; see the <a href="paper.pdf">paper</a> for more details.
     </p>
     
+
+    </div>
+    </div>
+    </div>
+    </section>
+
+    <section class="is-light">
+        <!-- dummy anchor to adjust for navbar height -->
+        <span class="nav-anchor" id="real-world"></span>
+    <div class="columns is-centered">
+    <div class="column has-text-centered">
+
+    <div class="container">
+        <div style="font-size: 35px">Real-world experiments</div>
+
+        <figure style="margin-bottom: 20px; width: 100%;">
+            <video style="width: 49%; max-width: 900px; margin-top: 30px; border: 2px solid black; mix-blend-mode: multiply;" muted playsinline autoplay loop controls>
+                <source src="media/real-world/franka-1.webm">
+            </video>
+            <video style="width: 49%; max-width: 900px; margin-top: 30px; border: 2px solid black; mix-blend-mode: multiply;" muted playsinline autoplay loop controls>
+                <source src="media/real-world/franka-2.webm">
+            </video>
+        </figure>
+        <br>
+
+    <p class="inner-text left" style="margin-bottom: 15px;">
+        A toy example illustrating how streaming flow policy matches marginal distribution of actions in the trajectory at all time steps, but not necessarily their joint distribution.
+        The \(x\)-axis represents a 1-D action space, and the \(y\)-axis represents action execution time, which is equal to the flow progression time.
+        <b>(a)</b>
+        The bi-modal training set contains two <i>intersecting</i> demonstration trajectories,
+        illustrated in <span class="medium-bold" style="color: blue">blue</span> and <span class="medium-bold" style="color: red">red</span>, with shapes "<span style="font-size: 18px; color: blue; font-weight: bold;">S</span>" and "<span style="font-size: 19px; color: red; font-weight: bold;">Ƨ</span>" respectively.
+        <b>(b)</b> The learned velocity flow field \(v_{\theta}(a, t \mid h)\) and the induced marginal action distribution at each time step.
+        The marginal distributions perfectly match the training data.
+        <b>(c)</b> Trajectories sampled from the learned velocity field. Trajectories that start from \(a < 0\) are shown in blue, and those starting from \(a > 0\) are shown in red. The sampled trajectories have shapes "<span style="font-size: 18px; color: blue; font-weight: bold;">Ɛ</span>" and "<span style="font-size: 18px; color: red; font-weight: bold;">3</span>", with equal probability. These shapes are different from the shapes "<span style="font-size: 18px; color: blue; font-weight: bold;">S</span>" and "<span style="font-size: 19px; color: red; font-weight: bold;">Ƨ</span>" in the training distribution, although their per-timestep marginal distributions are identical.
+    </p>
 
     </div>
     </div>
