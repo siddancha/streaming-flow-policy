@@ -710,7 +710,7 @@ div.underwater-results-carousel .slider-navigation-previous {
     </p>
     <p class="inner-text left">
         We introduce an imitation learning framework that simplifies diffusion/flow policies by treating <b><i>"robot trajectories as flow trajectories"</i></b>.
-        We develop a novel flow-matching algorithm in \(\mathcal{C}\)-space that starts from the current robot configuration and iteratively samples a sequence of configurations that constitutes a <i>single</i> robot trajectory.
+        We develop a novel flow-matching algorithm in \(\mathcal{A}\)-space that starts from the current robot configuration and iteratively samples a sequence of configurations that constitutes a <i>single</i> robot trajectory.
         This aligns the "diffusion time" of the flow sampling process with the "execution time" of the robot trajectory.
         Importantly, the computed actions can be streamed to the robot's actuators on the fly <i><u>during</u></i> the flow sampling process, enabling significantly faster and reactive policies.
     </p>
@@ -739,7 +739,7 @@ div.underwater-results-carousel .slider-navigation-previous {
     The \(y\)-axis represents time.
     Given a demonstration trajectory from the training set (e.g., the <span class="medium-bold" style="color: blue">blue</span> one), we first <i>construct</i> a conditional flow in <b>(b)</b>  that samples trajectories from a thin tube around the demonstration.
     
-    Let us represent the trajectory by \(\xi: [0, 1] \rightarrow \mathcal{C}\).
+    Let us represent the trajectory by \(\xi: [0, 1] \rightarrow \mathcal{A}\).
     We construct a velocity field \(v_\xi(a, t \,|\, h)\) as follows:
 </p>
 
@@ -844,12 +844,12 @@ div.underwater-results-carousel .slider-navigation-previous {
         In this toy example, the \(x\)-axis represents a 1-D configuration space, and the \(y\)-axis represents both trajectory time and flow time.
         <b>(a)</b>
         The toy bi-modal training set, same as the previous example, contains two trajectories shown in <span class="medium-bold" style="color: red">red</span> and <span class="medium-bold" style="color: blue">blue</span>.
-        Given a demonstration trajectory from the training set (e.g., the demonstration in <span class="medium-bold" style="color: blue">blue</span>), we design a velocity field \(v(a, z, t \mid h)\) that takes as input time \(t \in [0, 1]\), the configuration \(a\) at time \(t\), as well as an additional latent variable \(z \in \mathcal{C}\).
+        Given a demonstration trajectory from the training set (e.g., the demonstration in <span class="medium-bold" style="color: blue">blue</span>), we design a velocity field \(v(a, z, t \mid h)\) that takes as input time \(t \in [0, 1]\), the configuration \(a\) at time \(t\), as well as an additional latent variable \(z \in \mathcal{A}\).
         The latent variable is responsible for injecting noise into the flow sampling process, allowing the initial robot configuration \(a(0)\) to be deterministically set to the initial configuration of the demonstration.
         
         The latent variable \(z(0) \sim \mathcal{N}(0, 1)\) is sampled from the standard normal distribution at the beginning of the flow process, similar to conventional diffusion/flow policies.
         The velocity field \(v(a, z, t \mid h)\) generates trajectories in an extended sample space
-        \([0, 1] \rightarrow \mathcal{C}^2\)
+        \([0, 1] \rightarrow \mathcal{A}^2\)
         where \(a\) and \(z\) are correlated and co-evolve with time.
         <b>(b)</b> Shows the marginal distribution of configurations \(a(t)\), and <b>(c)</b> shows the marginal distributions of the latent variable \(z(t)\), at each time step.
         Overlaid in red are the \(a\)- and \(z\)- projections, respectively, of trajectories sampled from the velocity field.
