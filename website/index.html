@@ -703,14 +703,16 @@ div.underwater-results-carousel .slider-navigation-previous {
         input a history of observations (not shown) to predict a "chunk" of future robot actions.
         The \(x\)-axis represents the robot action space, and the \(y\)-axis represents increasing diffusion timesteps.
         Conventional diffusion/flow policies sample a <b><i>"trajectory of trajectories"</i></b> <i>i.e.</i> a diffusion/flow trajectory of action trajectories.
-        This framework discards all intermediate action trajectories that are computed, and must wait for the diffusion/flow process to complete before the first actions can be executed on the robot.
+        This framework discards all intermediate action trajectories that are computed, and must wait for the diffusion/flow process to complete before any actions can be executed on the robot.
     </p>
     <p class="inner-text" style="font-size: 18px;">
         <i>Right:</i> <u>Streaming flow policy treats <b><i>action trajectories as flow trajectories</i></b></u>
     </p>
     <p class="inner-text left">
         We introduce an imitation learning framework that simplifies diffusion/flow policies by treating <b><i>"action trajectories as flow trajectories"</i></b>.
-        We develop a novel flow-matching algorithm in the action space (instead of action <i>trajectory</i> space) that starts from the most recently generated/executed action, and iteratively samples a sequence of actions that constitutes a <i>single</i> action trajectory.
+        We develop a novel flow-matching algorithm in action space, instead of action <i>trajectory</i> space.
+        First, we sample from a narrow Gaussian centered at the most recently generated/executed action.
+        Then, we iteratively sample a sequence of actions that constitutes a <i>single</i> action trajectory.
         This aligns the "diffusion time" of the flow sampling process with the "execution time" of the action trajectory.
         Importantly, the computed actions can be streamed to the robot's actuators on the fly <i><u>during</u></i> the flow sampling process, enabling significantly faster and reactive policies.
     </p>
@@ -735,9 +737,9 @@ div.underwater-results-carousel .slider-navigation-previous {
 
 
 <p class="inner-text left" style="margin-bottom: 5px;">
-    To illustrate our method, consider a toy example shown in <b>(a)</b> of 1-D action trajectory (\(x\)-axis) with two demonstration trajectories shown in <span class="medium-bold" style="color: blue">blue</span> and <span class="medium-bold" style="color: red">red</span>.
+    To illustrate our method, consider a toy example shown in <b>(a)</b> of 1-D actions (\(x\)-axis) with two demonstration trajectories shown in <span class="medium-bold" style="color: blue">blue</span> and <span class="medium-bold" style="color: red">red</span>.
     The \(y\)-axis represents time.
-    Given a demonstration trajectory from the training set (e.g., the <span class="medium-bold" style="color: blue">blue</span> one), we first <i>construct</i> a conditional flow in <b>(b)</b>  that samples trajectories from a thin tube around the demonstration.
+    Given a demonstration trajectory from the training set (e.g., the <span class="medium-bold" style="color: blue">blue</span> one), we first <i>construct</i> a conditional flow in <b>(b)</b>  that samples trajectories from a thin Gaussian tube around the demonstration.
     
     Let us represent the trajectory by \(\xi: [0, 1] \rightarrow \mathcal{A}\).
     We construct a velocity field \(v_\xi(a, t \,|\, h)\) as follows:
@@ -755,9 +757,9 @@ div.underwater-results-carousel .slider-navigation-previous {
 <p class="inner-text left" style="margin-bottom: 5px;">
     The initial distribution \(p_\xi^0(a)\) is a narrow Gaussian centered at the starting action \(\xi(0)\) of the demonstration with a small standard deviation \(\sigma_0\).
     The velocity field \(v_\xi(a, t \,|\, h)\) is a combination of two terms.
-    The <i>demonstration velocity</i> is the velocity of the demonstration trajectory at time \(t\); this term serves to flow in the direction of the demonstration.
+    The <i>demonstration velocity</i> is the time derivative of the demonstration trajectory at time \(t\); this term serves to flow in the direction of the demonstration.
     The <i>stabilization term</i> is a negative proportional error feedback that corrects deviations and guides back to the demonstration trajectory.
-    <a href="https://arxiv.org/abs/2307.14619">Block et. al.</a> have shown that controllers that stabilize around demonstration trajectories are known to reduce distribution shift and improve theoretical imitation learning guarantees.
+    <a href="https://arxiv.org/abs/2307.14619">Block et. al.</a> have shown that controllers that stabilize around demonstration trajectories reduce distribution shift and improve theoretical imitation learning guarantees.
 </p>
 
     </div>
@@ -781,18 +783,18 @@ div.underwater-results-carousel .slider-navigation-previous {
     <br>
 
 <p class="inner-text left" style="margin-bottom: 15px;">
-    Then, learn a <i>marginal</i> velocity field that expresses multi-modal trajectories, as shown in <b>(c)</b>.
+    Then, we learn a <i>marginal</i> velocity field that expresses multi-modal trajectories, as shown in <b>(c)</b>.
     The marginal distribution over actions at each time slice induced by the learned velocity field matches the training distribution!
     The sampled trajectories shown in <b>(e)</b> indeed bifurcate and cover both modes of the demonstrated data.<br>
 </p>
 
 <p class="inner-text left" style="margin-bottom: 15px;">
-    How does this magic work? The answer is <a class="medium-bold" href="https://arxiv.org/abs/2210.02747">flow matching</a>!.
+    How does this magic work? The answer is <a class="medium-bold" href="https://arxiv.org/abs/2210.02747">flow matching</a>!
 </p>
 
 <p class="inner-text left" style="margin-bottom: 5px;">
-    Let \(p_\mathcal{D}(h, \xi)\) denote the training distribution over histories \(h\) and future trajectories \(\xi\).
-    constructed conditional velocity fields \(v_\xi(a, t)\) as target, we train a neural network \(v_\theta(a, t \mid h)\) using a finite-sample estimate of the <a class="medium-bold" href="https://arxiv.org/abs/2210.02747">conditional flow matching loss</a>:
+    Let \(p_\mathcal{D}(h, \xi)\) denote the training distribution over histories \(h\) and future action trajectories \(\xi\).
+    Using the constructed conditional velocity fields \(v_\xi(a, t)\) as target, we train a neural network \(v_\theta(a, t \mid h)\) using a finite-sample estimate of the <a class="medium-bold" href="https://arxiv.org/abs/2210.02747">conditional flow matching loss</a>:
 
     <span style="font-size: 18px;">
     \begin{align}
@@ -800,10 +802,10 @@ div.underwater-results-carousel .slider-navigation-previous {
         &\mathbb{E}_{(h, \xi) \sim p_\mathcal{D}}~\mathbb{E}_{t \sim {U}[0,1]}~\mathbb{E}_{a \sim p_\xi\left(a \mid t\right)} ~ \big\|v_\theta(a, t \mid h) - v_\xi(a, t)\big\|_2^2
     \end{align}
     </span>
-    This is simply an \(L_2\) loss between the predicted velocity field \(v_\theta(a, t \mid h)\) and the the conditional velocity field \(v_\xi(a, t)\) as target.
+    This is simply an \(L_2\) loss between the predicted velocity field \(v_\theta(a, t \mid h)\) and the conditional velocity field \(v_\xi(a, t)\) as target.
     The expectation is over histories and trajectories in the training distribution \(p_\mathcal{D}(h, \xi)\), time \(t\) sampled uniformly from \([0, 1]\), and action \(a\) sampled from the constructed conditional flow.
 
-    The <a class="medium-bold" href="https://arxiv.org/abs/2210.02747">flow matching theorem</a> states that if the velocity network is trained well, then the per-timestep marginal distribution induced by learned flow matches the average of per-timestep marginal distributions of constructed conditional flows  \(p_\xi(a \mid t)\), over the  distribution of future trajectories in the training set \(p_\mathcal{D}(\xi \mid h)\) that share the given observation history \(h\).
+    The <a class="medium-bold" href="https://arxiv.org/abs/2210.02747">flow matching theorem</a> states that if the velocity network is trained well, then the per-timestep marginal action distribution induced by learned flow matches the average of per-timestep marginal distributions of constructed conditional flows  \(p_\xi(a \mid t)\), over the distribution of future trajectories in the training set \(p_\mathcal{D}(\xi \mid h)\) that share the given observation history \(h\).
 
     <span style="font-size: 17px;">
     \begin{align}
@@ -814,8 +816,8 @@ div.underwater-results-carousel .slider-navigation-previous {
     \end{align}
     </span>
 
-    Streaming flow policy is able to both <b>represent multi-modal distributions</b> over action trajectories
-    like diffusion/flow policies, while also being <b>able to stream actions</b> during the flow sampling process.
+    Streaming flow policy is able to both ✅ <b st>represent multi-modal distributions</b> over action trajectories
+    like diffusion/flow policies, while also being ✅ <b>able to stream actions</b> during the flow sampling process.
 </p>
 
     </div>
@@ -841,7 +843,7 @@ div.underwater-results-carousel .slider-navigation-previous {
     <br>
 
     <p class="inner-text left" style="margin-bottom: 15px;">
-        In this toy example, the \(x\)-axis represents a 1-D action space, and the \(y\)-axis represents both trajectory time and flow time.
+        In this toy example, the \(x\)-axis represents a 1-D action space, and the \(y\)-axis represents action execution time, which is equal to the flow progression time.
         <b>(a)</b>
         The toy bi-modal training set, same as the previous example, contains two trajectories shown in <span class="medium-bold" style="color: red">red</span> and <span class="medium-bold" style="color: blue">blue</span>.
         Given a demonstration trajectory from the training set (e.g., the demonstration in <span class="medium-bold" style="color: blue">blue</span>), we design a velocity field \(v(a, z, t \mid h)\) that takes as input time \(t \in [0, 1]\), the action \(a\) at time \(t\), as well as an additional latent variable \(z \in \mathcal{A}\).
@@ -903,7 +905,7 @@ div.underwater-results-carousel .slider-navigation-previous {
 
     <p class="inner-text left" style="margin-bottom: 15px;">
         A toy example illustrating how streaming flow policy matches marginal distribution of actions in the trajectory at all time steps, but not necessarily their joint distribution.
-        The \(x\)-axis represents a 1-D action space, and the \(y\)-axis represents both trajectory time and flow time. 
+        The \(x\)-axis represents a 1-D action space, and the \(y\)-axis represents action execution time, which is equal to the flow progression time.
         <b>(a)</b>
         The bi-modal training set contains two <i>intersecting</i> demonstration trajectories,
         illustrated in <span class="medium-bold" style="color: blue">blue</span> and <span class="medium-bold" style="color: red">red</span>, with shapes "<span style="font-size: 18px; color: blue; font-weight: bold;">S</span>" and "<span style="font-size: 19px; color: red; font-weight: bold;">Ƨ</span>" respectively.
