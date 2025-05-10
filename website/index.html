@@ -701,7 +701,7 @@ div.underwater-results-carousel .slider-navigation-previous {
     <p class="inner-text left" style="margin-bottom: 10px;">
         <a href="https://diffusion-policy.cs.columbia.edu/">Diffusion policy</a> and <a href="https://www.physicalintelligence.company/blog/pi0">flow-matching policy</a>
         input a history of observations (not shown) to predict a "chunk" of future robot actions.
-        The \(x\)-axis represents the action (robot configuration) space, and the \(y\)-axis represents increasing diffusion timesteps.
+        The \(x\)-axis represents the robot action space, and the \(y\)-axis represents increasing diffusion timesteps.
         Conventional diffusion/flow policies sample a <b><i>"trajectory of trajectories"</i></b> <i>i.e.</i> a diffusion/flow trajectory of robot trajectories.
         This framework discards all intermediate robot trajectories that are computed, and must wait for the diffusion/flow process to complete before the first actions can be executed on the robot.
     </p>
@@ -710,7 +710,7 @@ div.underwater-results-carousel .slider-navigation-previous {
     </p>
     <p class="inner-text left">
         We introduce an imitation learning framework that simplifies diffusion/flow policies by treating <b><i>"robot trajectories as flow trajectories"</i></b>.
-        We develop a novel flow-matching algorithm in \(\mathcal{A}\)-space that starts from the current robot configuration and iteratively samples a sequence of configurations that constitutes a <i>single</i> robot trajectory.
+        We develop a novel flow-matching algorithm in \(\mathcal{A}\)-space that starts from the most recently generated/executed action, and iteratively samples a sequence of actions that constitutes a <i>single</i> robot trajectory.
         This aligns the "diffusion time" of the flow sampling process with the "execution time" of the robot trajectory.
         Importantly, the computed actions can be streamed to the robot's actuators on the fly <i><u>during</u></i> the flow sampling process, enabling significantly faster and reactive policies.
     </p>
@@ -753,7 +753,7 @@ div.underwater-results-carousel .slider-navigation-previous {
 </p>
 
 <p class="inner-text left" style="margin-bottom: 5px;">
-    The initial distribution \(p_\xi^0(a)\) is a narrow Gaussian centered at the starting configuration \(\xi(0)\) of the demonstration with a small standard deviation \(\sigma_0\).
+    The initial distribution \(p_\xi^0(a)\) is a narrow Gaussian centered at the starting action \(\xi(0)\) of the demonstration with a small standard deviation \(\sigma_0\).
     The velocity field \(v_\xi(a, t \,|\, h)\) is a combination of two terms.
     The <i>demonstration velocity</i> is the velocity of the demonstration trajectory at time \(t\); this term serves to flow in the direction of the demonstration.
     The <i>stabilization term</i> is a negative proportional error feedback that corrects deviations and guides back to the demonstration trajectory.
@@ -782,7 +782,7 @@ div.underwater-results-carousel .slider-navigation-previous {
 
 <p class="inner-text left" style="margin-bottom: 15px;">
     Then, learn a <i>marginal</i> velocity field that expresses multi-modal trajectories, as shown in <b>(c)</b>.
-    The marginal distribution over configurations at each time slice induced by the learned velocity field matches the training distribution!
+    The marginal distribution over actions at each time slice induced by the learned velocity field matches the training distribution!
     The sampled trajectories shown in <b>(e)</b> indeed bifurcate and cover both modes of the demonstrated data.<br>
 </p>
 
@@ -801,7 +801,7 @@ div.underwater-results-carousel .slider-navigation-previous {
     \end{align}
     </span>
     This is simply an \(L_2\) loss between the predicted velocity field \(v_\theta(a, t \mid h)\) and the the conditional velocity field \(v_\xi(a, t)\) as target.
-    The expectation is over histories and trajectories in the training distribution \(p_\mathcal{D}(h, \xi)\), time \(t\) sampled uniformly from \([0, 1]\), and configuration \(a\) sampled from the constructed conditional flow.
+    The expectation is over histories and trajectories in the training distribution \(p_\mathcal{D}(h, \xi)\), time \(t\) sampled uniformly from \([0, 1]\), and action \(a\) sampled from the constructed conditional flow.
 
     The <a class="medium-bold" href="https://arxiv.org/abs/2210.02747">flow matching theorem</a> states that if the velocity network is trained well, then the per-timestep marginal distribution induced by learned flow matches the average of per-timestep marginal distributions of constructed conditional flows  \(p_\xi(a \mid t)\), over the  distribution of future trajectories in the training set \(p_\mathcal{D}(\xi \mid h)\) that share the given observation history \(h\).
 
@@ -835,25 +835,25 @@ div.underwater-results-carousel .slider-navigation-previous {
     <figure style="margin-bottom: 10px; width: 100%; max-width: 900px;">
         <img src="media/wineglass-stochastic/stochastic-sfp-conditional.png" style="max-height: 350px; max-width: 900px; padding-top: 35px; padding-bottom: 5px; mix-blend-mode: multiply;">
         <figcaption style="font-size: 17px; width:100%; max-width: 900px;">
-            Constructing a conditional flow using stochastic latent variables instead of adding noise to robot configurations.
+            Constructing a conditional flow using stochastic latent variables instead of adding noise to actions.
         </figcaption>
     </figure>
     <br>
 
     <p class="inner-text left" style="margin-bottom: 15px;">
-        In this toy example, the \(x\)-axis represents a 1-D configuration space, and the \(y\)-axis represents both trajectory time and flow time.
+        In this toy example, the \(x\)-axis represents a 1-D action space, and the \(y\)-axis represents both trajectory time and flow time.
         <b>(a)</b>
         The toy bi-modal training set, same as the previous example, contains two trajectories shown in <span class="medium-bold" style="color: red">red</span> and <span class="medium-bold" style="color: blue">blue</span>.
-        Given a demonstration trajectory from the training set (e.g., the demonstration in <span class="medium-bold" style="color: blue">blue</span>), we design a velocity field \(v(a, z, t \mid h)\) that takes as input time \(t \in [0, 1]\), the configuration \(a\) at time \(t\), as well as an additional latent variable \(z \in \mathcal{A}\).
-        The latent variable is responsible for injecting noise into the flow sampling process, allowing the initial robot configuration \(a(0)\) to be deterministically set to the initial configuration of the demonstration.
+        Given a demonstration trajectory from the training set (e.g., the demonstration in <span class="medium-bold" style="color: blue">blue</span>), we design a velocity field \(v(a, z, t \mid h)\) that takes as input time \(t \in [0, 1]\), the action \(a\) at time \(t\), as well as an additional latent variable \(z \in \mathcal{A}\).
+        The latent variable is responsible for injecting noise into the flow sampling process, allowing the initial action \(a(0)\) to be deterministically set to the initial action of the demonstration.
         
         The latent variable \(z(0) \sim \mathcal{N}(0, 1)\) is sampled from the standard normal distribution at the beginning of the flow process, similar to conventional diffusion/flow policies.
         The velocity field \(v(a, z, t \mid h)\) generates trajectories in an extended sample space
         \([0, 1] \rightarrow \mathcal{A}^2\)
         where \(a\) and \(z\) are correlated and co-evolve with time.
-        <b>(b)</b> Shows the marginal distribution of configurations \(a(t)\), and <b>(c)</b> shows the marginal distributions of the latent variable \(z(t)\), at each time step.
+        <b>(b)</b> Shows the marginal distribution of actions \(a(t)\), and <b>(c)</b> shows the marginal distributions of the latent variable \(z(t)\), at each time step.
         Overlaid in red are the \(a\)- and \(z\)- projections, respectively, of trajectories sampled from the velocity field.
-        The configuration evolves in a narrow Gaussian tube around the demonstration, while the latent variable starts from \(\mathcal{N}(0, 1)\) at \(t=0\) and converges to the demonstration trajectory at \(t=1\); see the <a href="paper.pdf">paper</a> for a full description of the velocity field.
+        The action's trajectory evolves in a narrow Gaussian tube around the demonstration, while the latent variable's trajectory starts from \(\mathcal{N}(0, 1)\) at \(t=0\) and converges to the demonstration trajectory at \(t=1\); see the <a href="paper.pdf">paper</a> for a full description of the velocity field.
     </p>
 
     <figure style="margin-bottom: 20px; width: 100%">
@@ -866,15 +866,15 @@ div.underwater-results-carousel .slider-navigation-previous {
     <p class="inner-text left" style="margin-bottom: 15px;">
         The marginal velocity flow field \(v_{\theta}(a, z, t \mid h)\) learned using the flow construction above.
         <b>(a, b)</b>
-        shows the marginal distribution of configurations \(a(t)\) and the latent variable \(z(t)\), respectively, at each time step under the learned velocity field.
+        shows the marginal distribution of actions \(a(t)\) and the latent variable \(z(t)\), respectively, at each time step under the learned velocity field.
         <b>(c, d)</b>
         Shows the \(a\)- and \(z\)- projections, respectively, of trajectories sampled from the learned velocity field.
-        By construction, \(a(0)\) deterministically starts from the current robot configuration, whereas \(z(0)\) is sampled from \(\mathcal{N}(0, 1)\).
+        By construction, \(a(0)\) deterministically starts from the most recently executed action, whereas \(z(0)\) is sampled from \(\mathcal{N}(0, 1)\).
         Trajectories starting with \(z(0) < 0\) are shown in <span class="medium-bold" style="color: blue">blue</span>, and those with \(z(0) > 0\) are shown in <span class="medium-bold" style="color: red">red</span>.
     </p>
 
     <p class="inner-text left" style="margin-bottom: 15px;">
-        The main takeaway is that in <b>(c)</b>, even though all samples deterministically start from the same initial configuration (i.e., the current robot configuration), they evolve in a stochastic manner that covers both modes of the training distribution.
+        The main takeaway is that in <b>(c)</b>, even though all samples deterministically start from the same initial action (i.e., the most recently executed action), they evolve in a stochastic manner that covers both modes of the training distribution.
         This is possible because the stochastic latent variable \(z\) is correlated with \(a\), and the initial random sample \(z(0) \sim \mathcal{N}(0, 1)\) informs the direction \(a\) evolves in.
     </p>
 
@@ -902,12 +902,12 @@ div.underwater-results-carousel .slider-navigation-previous {
     </figure>
 
     <p class="inner-text left" style="margin-bottom: 15px;">
-        A toy example illustrating how streaming flow policy matches marginal distribution of configurations in the trajectory at all time steps, but not necessarily their joint distribution.
-        The \(x\)-axis represents a 1-D configuration space, and the \(y\)-axis represents both trajectory time and flow time. 
+        A toy example illustrating how streaming flow policy matches marginal distribution of actions in the trajectory at all time steps, but not necessarily their joint distribution.
+        The \(x\)-axis represents a 1-D action space, and the \(y\)-axis represents both trajectory time and flow time. 
         <b>(a)</b>
         The bi-modal training set contains two <i>intersecting</i> demonstration trajectories,
         illustrated in <span class="medium-bold" style="color: blue">blue</span> and <span class="medium-bold" style="color: red">red</span>, with shapes "<span style="font-size: 18px; color: blue; font-weight: bold;">S</span>" and "<span style="font-size: 19px; color: red; font-weight: bold;">Ƨ</span>" respectively.
-        <b>(b)</b> The learned velocity flow field \(v_{\theta}(a, t \mid h)\) and the induced marginal distributions of configurations at each time step.
+        <b>(b)</b> The learned velocity flow field \(v_{\theta}(a, t \mid h)\) and the induced marginal action distribution at each time step.
         The marginal distributions perfectly match the training data.
         <b>(c)</b> Trajectories sampled from the learned velocity field. Trajectories that start from \(a < 0\) are shown in blue, and those starting from \(a > 0\) are shown in red. The sampled trajectories have shapes "<span style="font-size: 18px; color: blue; font-weight: bold;">Ɛ</span>" and "<span style="font-size: 18px; color: red; font-weight: bold;">3</span>", with equal probability. These shapes are different from the shapes "<span style="font-size: 18px; color: blue; font-weight: bold;">S</span>" and "<span style="font-size: 19px; color: red; font-weight: bold;">Ƨ</span>" in the training distribution, although their per-timestep marginal distributions are identical.
     </p>
@@ -921,10 +921,10 @@ div.underwater-results-carousel .slider-navigation-previous {
     </figure>
 
     <p class="inner-text left" style="margin-bottom: 15px;">
-        Different variants of streaming flow policy can produce different joint distributions of configurations that are consistent with the per-timestep marginal distributions in the training data.
+        Different variants of streaming flow policy can produce different joint distributions over actions that are consistent with the per-timestep marginal distributions in the training data.
         This example is produced using the <a href="#decoupling-stochasticity">stochastic version</a> of streaming flow policy.
         <b>(a)</b>
-        The marginal distribution of configurations at each time step learned by the stochastic streaming flow policy matches the training data.
+        The marginal action distribution at each time step learned by the stochastic streaming flow policy matches the training data.
         <b>(b)</b> Samples from the trained policy produces <i>four</i> modes with shapes "<span style="font-size: 19px; color: blue; font-weight: bold;">Ƨ</span>", "<span style="font-size: 18px; color: red; font-weight: bold;">S</span>", "<span style="font-size: 18px; color: blue; font-weight: bold;">Ɛ</span>" and "<span style="font-size: 18px; color: red; font-weight: bold;">3</span>", whereas the training data contains only two modes with shapes "<span style="font-size: 18px; color: red; font-weight: bold;">S</span>" and "<span style="font-size: 19px; color: blue; font-weight: bold;">Ƨ</span>".
         Due to stochasticity introduced by decoupled latent variables, trajectories in blue (alternatively, red) that start from \(a < 0\) (alternatively, \(a > 0\)) are able to split in either direction at the point of intersection.
     </p>
