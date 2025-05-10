@@ -740,21 +740,21 @@ div.underwater-results-carousel .slider-navigation-previous {
     Given a demonstration trajectory from the training set (e.g., the <span class="medium-bold" style="color: blue">blue</span> one), we first <i>construct</i> a conditional flow in <b>(b)</b>  that samples trajectories from a thin tube around the demonstration.
     
     Let us represent the trajectory by \(\xi: [0, 1] \rightarrow \mathcal{C}\).
-    We construct a velocity field \(v_\xi(q, t \,|\, h)\) as follows:
+    We construct a velocity field \(v_\xi(a, t \,|\, h)\) as follows:
 </p>
 
 <p class="inner-text left" style="font-size: 18px; margin-bottom: 5px;">
     $$
     \begin{align}
-    p_\xi^0(q) \hspace{0.5em}  &:=  \ \mathcal{N}\left(q ~\big\vert~ \xi(0) \,,\, \sigma_0^2\right)\\
-        v_\xi(q, t) \hspace{0.5em}  &:= \hspace{-0.5em}\underbrace{\ \dot{\xi}(t)\ }_{\hspace{-5em}\text{Demonstration velocity}} \hspace{-0.5em} - \underbrace{k(q - \xi(t))}_{\text{Stabilization term}}
+    p_\xi^0(a) \hspace{0.5em}  &:=  \ \mathcal{N}\left(a ~\big\vert~ \xi(0) \,,\, \sigma_0^2\right)\\
+        v_\xi(a, t) \hspace{0.5em}  &:= \hspace{-0.5em}\underbrace{\ \dot{\xi}(t)\ }_{\hspace{-5em}\text{Demonstration velocity}} \hspace{-0.5em} - \underbrace{k(a - \xi(t))}_{\text{Stabilization term}}
     \end{align}
     $$
 </p>
 
 <p class="inner-text left" style="margin-bottom: 5px;">
-    The initial distribution \(p_\xi^0(q)\) is a narrow Gaussian centered at the starting configuration \(\xi(0)\) of the demonstration with a small standard deviation \(\sigma_0\).
-    The velocity field \(v_\xi(q, t \,|\, h)\) is a combination of two terms.
+    The initial distribution \(p_\xi^0(a)\) is a narrow Gaussian centered at the starting configuration \(\xi(0)\) of the demonstration with a small standard deviation \(\sigma_0\).
+    The velocity field \(v_\xi(a, t \,|\, h)\) is a combination of two terms.
     The <i>demonstration velocity</i> is the velocity of the demonstration trajectory at time \(t\); this term serves to flow in the direction of the demonstration.
     The <i>stabilization term</i> is a negative proportional error feedback that corrects deviations and guides back to the demonstration trajectory.
     <a href="https://arxiv.org/abs/2307.14619">Block et. al.</a> have shown that controllers that stabilize around demonstration trajectories are known to reduce distribution shift and improve theoretical imitation learning guarantees.
@@ -792,24 +792,24 @@ div.underwater-results-carousel .slider-navigation-previous {
 
 <p class="inner-text left" style="margin-bottom: 5px;">
     Let \(p_\mathcal{D}(h, \xi)\) denote the training distribution over histories \(h\) and future trajectories \(\xi\).
-    constructed conditional velocity fields \(v_\xi(q, t)\) as target, we train a neural network \(v_\theta(q, t \mid h)\) using a finite-sample estimate of the <a class="medium-bold" href="https://arxiv.org/abs/2210.02747">conditional flow matching loss</a>:
+    constructed conditional velocity fields \(v_\xi(a, t)\) as target, we train a neural network \(v_\theta(a, t \mid h)\) using a finite-sample estimate of the <a class="medium-bold" href="https://arxiv.org/abs/2210.02747">conditional flow matching loss</a>:
 
     <span style="font-size: 18px;">
     \begin{align}
         \mathcal{L}_{\text{CFM}}(v_\theta, p_\mathcal{D}) := ~ 
-        &\mathbb{E}_{(h, \xi) \sim p_\mathcal{D}}~\mathbb{E}_{t \sim {U}[0,1]}~\mathbb{E}_{q \sim p_\xi\left(q \mid t\right)} ~ \big\|v_\theta(q, t \mid h) - v_\xi(q, t)\big\|_2^2
+        &\mathbb{E}_{(h, \xi) \sim p_\mathcal{D}}~\mathbb{E}_{t \sim {U}[0,1]}~\mathbb{E}_{a \sim p_\xi\left(a \mid t\right)} ~ \big\|v_\theta(a, t \mid h) - v_\xi(a, t)\big\|_2^2
     \end{align}
     </span>
-    This is simply an \(L_2\) loss between the predicted velocity field \(v_\theta(q, t \mid h)\) and the the conditional velocity field \(v_\xi(q, t)\) as target.
-    The expectation is over histories and trajectories in the training distribution \(p_\mathcal{D}(h, \xi)\), time \(t\) sampled uniformly from \([0, 1]\), and configuration \(q\) sampled from the constructed conditional flow.
+    This is simply an \(L_2\) loss between the predicted velocity field \(v_\theta(a, t \mid h)\) and the the conditional velocity field \(v_\xi(a, t)\) as target.
+    The expectation is over histories and trajectories in the training distribution \(p_\mathcal{D}(h, \xi)\), time \(t\) sampled uniformly from \([0, 1]\), and configuration \(a\) sampled from the constructed conditional flow.
 
-    The <a class="medium-bold" href="https://arxiv.org/abs/2210.02747">flow matching theorem</a> states that if the velocity network is trained well, then the per-timestep marginal distribution induced by learned flow matches the average of per-timestep marginal distributions of constructed conditional flows  \(p_\xi(q \mid t)\), over the  distribution of future trajectories in the training set \(p_\mathcal{D}(\xi \mid h)\) that share the given observation history \(h\).
+    The <a class="medium-bold" href="https://arxiv.org/abs/2210.02747">flow matching theorem</a> states that if the velocity network is trained well, then the per-timestep marginal distribution induced by learned flow matches the average of per-timestep marginal distributions of constructed conditional flows  \(p_\xi(a \mid t)\), over the  distribution of future trajectories in the training set \(p_\mathcal{D}(\xi \mid h)\) that share the given observation history \(h\).
 
     <span style="font-size: 17px;">
     \begin{align}
-        p^\star(q \mid t, h)
-        % &= \mathbb{E}_{\xi \sim p_\mathcal{D}(\xi \mid h)}\big[p_\xi(q \mid t)\big]
-        &= \int_\xi p_\xi(q \mid t)\,p_\mathcal{D}(\xi \mid h) \, d\xi
+        p^*(a \mid t, h)
+        % &= \mathbb{E}_{\xi \sim p_\mathcal{D}(\xi \mid h)}\big[p_\xi(a \mid t)\big]
+        &= \int_\xi p_\xi(a \mid t)\,p_\mathcal{D}(\xi \mid h) \, d\xi
         \label{eq:averaged-marginal-distributions}
     \end{align}
     </span>
@@ -844,15 +844,15 @@ div.underwater-results-carousel .slider-navigation-previous {
         In this toy example, the \(x\)-axis represents a 1-D configuration space, and the \(y\)-axis represents both trajectory time and flow time.
         <b>(a)</b>
         The toy bi-modal training set, same as the previous example, contains two trajectories shown in <span class="medium-bold" style="color: red">red</span> and <span class="medium-bold" style="color: blue">blue</span>.
-        Given a demonstration trajectory from the training set (e.g., the demonstration in <span class="medium-bold" style="color: blue">blue</span>), we design a velocity field \(v(q, z, t \mid h)\) that takes as input time \(t \in [0, 1]\), the configuration \(q\) at time \(t\), as well as an additional latent variable \(z \in \mathcal{C}\).
-        The latent variable is responsible for injecting noise into the flow sampling process, allowing the initial robot configuration \(q(0)\) to be deterministically set to the initial configuration of the demonstration.
+        Given a demonstration trajectory from the training set (e.g., the demonstration in <span class="medium-bold" style="color: blue">blue</span>), we design a velocity field \(v(a, z, t \mid h)\) that takes as input time \(t \in [0, 1]\), the configuration \(a\) at time \(t\), as well as an additional latent variable \(z \in \mathcal{C}\).
+        The latent variable is responsible for injecting noise into the flow sampling process, allowing the initial robot configuration \(a(0)\) to be deterministically set to the initial configuration of the demonstration.
         
         The latent variable \(z(0) \sim \mathcal{N}(0, 1)\) is sampled from the standard normal distribution at the beginning of the flow process, similar to conventional diffusion/flow policies.
-        The velocity field \(v(q, z, t \mid h)\) generates trajectories in an extended sample space
+        The velocity field \(v(a, z, t \mid h)\) generates trajectories in an extended sample space
         \([0, 1] \rightarrow \mathcal{C}^2\)
-        where \(q\) and \(z\) are correlated and co-evolve with time.
-        <b>(b)</b> Shows the marginal distribution of configurations \(q(t)\), and <b>(c)</b> shows the marginal distributions of the latent variable \(z(t)\), at each time step.
-        Overlaid in red are the \(q\)- and \(z\)- projections, respectively, of trajectories sampled from the velocity field.
+        where \(a\) and \(z\) are correlated and co-evolve with time.
+        <b>(b)</b> Shows the marginal distribution of configurations \(a(t)\), and <b>(c)</b> shows the marginal distributions of the latent variable \(z(t)\), at each time step.
+        Overlaid in red are the \(a\)- and \(z\)- projections, respectively, of trajectories sampled from the velocity field.
         The configuration evolves in a narrow Gaussian tube around the demonstration, while the latent variable starts from \(\mathcal{N}(0, 1)\) at \(t=0\) and converges to the demonstration trajectory at \(t=1\); see the <a href="paper.pdf">paper</a> for a full description of the velocity field.
     </p>
 
@@ -864,18 +864,18 @@ div.underwater-results-carousel .slider-navigation-previous {
     </figure>
 
     <p class="inner-text left" style="margin-bottom: 15px;">
-        The marginal velocity flow field \(v_{\theta}(q, z, t \mid h)\) learned using the flow construction above.
+        The marginal velocity flow field \(v_{\theta}(a, z, t \mid h)\) learned using the flow construction above.
         <b>(a, b)</b>
-        shows the marginal distribution of configurations \(q(t)\) and the latent variable \(z(t)\), respectively, at each time step under the learned velocity field.
+        shows the marginal distribution of configurations \(a(t)\) and the latent variable \(z(t)\), respectively, at each time step under the learned velocity field.
         <b>(c, d)</b>
-        Shows the \(q\)- and \(z\)- projections, respectively, of trajectories sampled from the learned velocity field.
-        By construction, \(q(0)\) deterministically starts from the current robot configuration, whereas \(z(0)\) is sampled from \(\mathcal{N}(0, 1)\).
+        Shows the \(a\)- and \(z\)- projections, respectively, of trajectories sampled from the learned velocity field.
+        By construction, \(a(0)\) deterministically starts from the current robot configuration, whereas \(z(0)\) is sampled from \(\mathcal{N}(0, 1)\).
         Trajectories starting with \(z(0) < 0\) are shown in <span class="medium-bold" style="color: blue">blue</span>, and those with \(z(0) > 0\) are shown in <span class="medium-bold" style="color: red">red</span>.
     </p>
 
     <p class="inner-text left" style="margin-bottom: 15px;">
         The main takeaway is that in <b>(c)</b>, even though all samples deterministically start from the same initial configuration (i.e., the current robot configuration), they evolve in a stochastic manner that covers both modes of the training distribution.
-        This is possible because the stochastic latent variable \(z\) is correlated with \(q\), and the initial random sample \(z(0) \sim \mathcal{N}(0, 1)\) informs the direction \(q\) evolves in.
+        This is possible because the stochastic latent variable \(z\) is correlated with \(a\), and the initial random sample \(z(0) \sim \mathcal{N}(0, 1)\) informs the direction \(a\) evolves in.
     </p>
 
     </div>
@@ -907,9 +907,9 @@ div.underwater-results-carousel .slider-navigation-previous {
         <b>(a)</b>
         The bi-modal training set contains two <i>intersecting</i> demonstration trajectories,
         illustrated in <span class="medium-bold" style="color: blue">blue</span> and <span class="medium-bold" style="color: red">red</span>, with shapes "<span style="font-size: 18px; color: blue; font-weight: bold;">S</span>" and "<span style="font-size: 19px; color: red; font-weight: bold;">Ƨ</span>" respectively.
-        <b>(b)</b> The learned velocity flow field \(v_{\theta}(q, t \mid h)\) and the induced marginal distributions of configurations at each time step.
+        <b>(b)</b> The learned velocity flow field \(v_{\theta}(a, t \mid h)\) and the induced marginal distributions of configurations at each time step.
         The marginal distributions perfectly match the training data.
-        <b>(c)</b> Trajectories sampled from the learned velocity field. Trajectories that start from \(q < 0\) are shown in blue, and those starting from \(q > 0\) are shown in red. The sampled trajectories have shapes "<span style="font-size: 18px; color: blue; font-weight: bold;">Ɛ</span>" and "<span style="font-size: 18px; color: red; font-weight: bold;">3</span>", with equal probability. These shapes are different from the shapes "<span style="font-size: 18px; color: blue; font-weight: bold;">S</span>" and "<span style="font-size: 19px; color: red; font-weight: bold;">Ƨ</span>" in the training distribution, although their per-timestep marginal distributions are identical.
+        <b>(c)</b> Trajectories sampled from the learned velocity field. Trajectories that start from \(a < 0\) are shown in blue, and those starting from \(a > 0\) are shown in red. The sampled trajectories have shapes "<span style="font-size: 18px; color: blue; font-weight: bold;">Ɛ</span>" and "<span style="font-size: 18px; color: red; font-weight: bold;">3</span>", with equal probability. These shapes are different from the shapes "<span style="font-size: 18px; color: blue; font-weight: bold;">S</span>" and "<span style="font-size: 19px; color: red; font-weight: bold;">Ƨ</span>" in the training distribution, although their per-timestep marginal distributions are identical.
     </p>
 
     <figure style="margin-bottom: 10px; width: 100%; max-width: 900px;">
@@ -926,7 +926,7 @@ div.underwater-results-carousel .slider-navigation-previous {
         <b>(a)</b>
         The marginal distribution of configurations at each time step learned by the stochastic streaming flow policy matches the training data.
         <b>(b)</b> Samples from the trained policy produces <i>four</i> modes with shapes "<span style="font-size: 19px; color: blue; font-weight: bold;">Ƨ</span>", "<span style="font-size: 18px; color: red; font-weight: bold;">S</span>", "<span style="font-size: 18px; color: blue; font-weight: bold;">Ɛ</span>" and "<span style="font-size: 18px; color: red; font-weight: bold;">3</span>", whereas the training data contains only two modes with shapes "<span style="font-size: 18px; color: red; font-weight: bold;">S</span>" and "<span style="font-size: 19px; color: blue; font-weight: bold;">Ƨ</span>".
-        Due to stochasticity introduced by decoupled latent variables, trajectories in blue (alternatively, red) that start from \(q < 0\) (alternatively, \(q > 0\)) are able to split in either direction at the point of intersection.
+        Due to stochasticity introduced by decoupled latent variables, trajectories in blue (alternatively, red) that start from \(a < 0\) (alternatively, \(a > 0\)) are able to split in either direction at the point of intersection.
     </p>
 
     <p class="inner-text left" style="margin-bottom: 15px;">
