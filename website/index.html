@@ -530,7 +530,7 @@ div.underwater-results-carousel .slider-navigation-previous {
         <p class="main-title"><u>Streaming Flow Policy</u></p>
     </div>
     <div class="container" style="font-size:35px; font-weight:bold;">
-        <p>Simplifying diffusion/flow policies by treating<br>robot trajectories as flow trajectories</p>
+        <p>Simplifying diffusion/flow-matching policies by<br>treating action trajectories as flow trajectories</p>
     </div>
     <br>
 
@@ -702,16 +702,16 @@ div.underwater-results-carousel .slider-navigation-previous {
         <a href="https://diffusion-policy.cs.columbia.edu/">Diffusion policy</a> and <a href="https://www.physicalintelligence.company/blog/pi0">flow-matching policy</a>
         input a history of observations (not shown) to predict a "chunk" of future robot actions.
         The \(x\)-axis represents the robot action space, and the \(y\)-axis represents increasing diffusion timesteps.
-        Conventional diffusion/flow policies sample a <b><i>"trajectory of trajectories"</i></b> <i>i.e.</i> a diffusion/flow trajectory of robot trajectories.
-        This framework discards all intermediate robot trajectories that are computed, and must wait for the diffusion/flow process to complete before the first actions can be executed on the robot.
+        Conventional diffusion/flow policies sample a <b><i>"trajectory of trajectories"</i></b> <i>i.e.</i> a diffusion/flow trajectory of action trajectories.
+        This framework discards all intermediate action trajectories that are computed, and must wait for the diffusion/flow process to complete before the first actions can be executed on the robot.
     </p>
     <p class="inner-text" style="font-size: 18px;">
-        <i>Right:</i> <u>Streaming flow policy treats <b><i>robot trajectories as flow trajectories</i></b></u>
+        <i>Right:</i> <u>Streaming flow policy treats <b><i>action trajectories as flow trajectories</i></b></u>
     </p>
     <p class="inner-text left">
-        We introduce an imitation learning framework that simplifies diffusion/flow policies by treating <b><i>"robot trajectories as flow trajectories"</i></b>.
-        We develop a novel flow-matching algorithm in \(\mathcal{A}\)-space that starts from the most recently generated/executed action, and iteratively samples a sequence of actions that constitutes a <i>single</i> robot trajectory.
-        This aligns the "diffusion time" of the flow sampling process with the "execution time" of the robot trajectory.
+        We introduce an imitation learning framework that simplifies diffusion/flow policies by treating <b><i>"action trajectories as flow trajectories"</i></b>.
+        We develop a novel flow-matching algorithm in the action space (instead of action <i>trajectory</i> space) that starts from the most recently generated/executed action, and iteratively samples a sequence of actions that constitutes a <i>single</i> action trajectory.
+        This aligns the "diffusion time" of the flow sampling process with the "execution time" of the action trajectory.
         Importantly, the computed actions can be streamed to the robot's actuators on the fly <i><u>during</u></i> the flow sampling process, enabling significantly faster and reactive policies.
     </p>
     </div>
@@ -735,7 +735,7 @@ div.underwater-results-carousel .slider-navigation-previous {
 
 
 <p class="inner-text left" style="margin-bottom: 5px;">
-    To illustrate our method, consider a toy example shown in <b>(a)</b> of 1-D robot trajectory (\(x\)-axis) with two demonstration trajectories shown in <span class="medium-bold" style="color: blue">blue</span> and <span class="medium-bold" style="color: red">red</span>.
+    To illustrate our method, consider a toy example shown in <b>(a)</b> of 1-D action trajectory (\(x\)-axis) with two demonstration trajectories shown in <span class="medium-bold" style="color: blue">blue</span> and <span class="medium-bold" style="color: red">red</span>.
     The \(y\)-axis represents time.
     Given a demonstration trajectory from the training set (e.g., the <span class="medium-bold" style="color: blue">blue</span> one), we first <i>construct</i> a conditional flow in <b>(b)</b>  that samples trajectories from a thin tube around the demonstration.
     
@@ -814,7 +814,7 @@ div.underwater-results-carousel .slider-navigation-previous {
     \end{align}
     </span>
 
-    Streaming flow policy is able to both <b>represent multi-modal distributions</b> over robot trajectories
+    Streaming flow policy is able to both <b>represent multi-modal distributions</b> over action trajectories
     like diffusion/flow policies, while also being <b>able to stream actions</b> during the flow sampling process.
 </p>
 
