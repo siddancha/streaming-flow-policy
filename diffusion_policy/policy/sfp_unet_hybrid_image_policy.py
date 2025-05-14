@@ -328,11 +328,11 @@ class SFPUnetHybridImagePolicy(BaseImagePolicy):
         self.current_t += 1/self.horizon
         self.prev_action = naction_pred[-1] # save a_8, last action as memory var [9, 56, 1, 2] -> #[56, 1, 2]
         #last action of the chunk, need to predict one more action for the start of next chunk
+        action  = action_pred.permute(1, 0, 2, 3).squeeze(2) #[56, 8, 2] 
         if self.current_t == self.n_action_steps/self.horizon: #8/16
             naction_pred = self.streaming_get_traj(obs_dict)
             action_pred = self.normalizer['action'].unnormalize(naction_pred) # [1, 56, 1, 2]
             self.prev_action = naction_pred[-1]
-        action  = action_pred.permute(1, 0, 2, 3).squeeze(2) #[56, 8, 2] 
         # print('action', naction_pred[self.select_action_indices][:, 0, 0,...])
         # print('prev_action', prev_action[0,...])
         result = {
