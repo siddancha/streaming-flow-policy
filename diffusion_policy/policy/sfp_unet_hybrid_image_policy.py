@@ -357,7 +357,7 @@ class SFPUnetHybridImagePolicy(BaseImagePolicy):
             if not self.use_action_traj:
                 x_test = nobs['agent_pos'][:,-1:,:] # agent position nobs (56, 2, 2) -> x_test (56, 1, 2)
             elif prev_action is None:
-                if self.robomimic:
+                if False:
                     pass ### TODO: add robomimic obs_to_action
                     # unnorm_x_test = self.robomimic_obs_to_action(obs[:,-1:,:]) #28, 1, 10
                 else:
@@ -424,7 +424,7 @@ class SFPUnetHybridImagePolicy(BaseImagePolicy):
         
         return result
     
-    def predict_action(self, obs_dict: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
+    def predict_action(self, obs_dict: Dict[str, torch.Tensor], prev_action = None) -> Dict[str, torch.Tensor]:
         """
         obs_dict: must include "obs" key
         result: must include "action" key
@@ -432,7 +432,7 @@ class SFPUnetHybridImagePolicy(BaseImagePolicy):
         if self.streaming:
             return self.streaming_predict_action(obs_dict)
         else:
-            return self.chunk_predict_action(obs_dict)
+            return self.chunk_predict_action(obs_dict, prev_action=prev_action)
 
 
     # ========= training  ============
