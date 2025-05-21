@@ -431,14 +431,14 @@ figcaption.carousel-text-caption {
 
 /* Custom CSS for Bulma Carousel */
 div.slider-pagination {
-    margin-bottom: 135px;
+    margin-bottom: 3px;
 }
 div.slider-navigation-next {
-    margin-top: -70px;
+    margin-top: 0px;
     border: 1px solid gray;
 }
 div.slider-navigation-previous {
-    margin-top: -70px;
+    margin-top: 0px;
     border: 1px solid gray;
 }
 
@@ -580,15 +580,15 @@ div.underwater-results-carousel .slider-navigation-previous {
             </a>
         </span>
         <!-- Video Link. -->
-        <!-- <span class="link-block" style="margin-left: 2px; margin-right: 2px">
-            <a href="https://youtu.be/ZmuKoiwb4Vo"
+        <span class="link-block" style="margin-left: 2px; margin-right: 2px">
+            <a href="https://youtu.be/iz33j5pf1_8"
             class="external-link button is-normal is-rounded is-dark">
             <span class="icon">
                 <i class="fab fa-youtube"></i>
             </span>
-            <span>3-min Video</span>
+            <span>5-min Video</span>
             </a>
-        </span> -->
+        </span>
         <!-- Code Link. -->
         <!-- <span class="link-block" style="margin-left: 2px; margin-right: 2px">
             <a href="https://anonymous.4open.science/r/streaming-flow-policy/README.md"
@@ -926,25 +926,52 @@ div.underwater-results-carousel .slider-navigation-previous {
     <div class="column has-text-centered">
 
     <div class="container">
-        <div style="font-size: 35px">Real-world demo</div>
+        <div style="font-size: 35px; width: 100%;">Real-world demo</div><br>
 
-        <figure style="margin-bottom: 20px; width: 100%;">
-            <video style="width: 49%; max-width: 900px; margin-top: 30px; border: 2px solid black" muted playsinline autoplay loop controls>
-                <source src="media/real-world/franka-1.webm">
-            </video>
-            <video style="width: 49%; max-width: 900px; margin-top: 30px; border: 2px solid black" muted playsinline autoplay loop controls>
-                <source src="media/real-world/franka-2.webm">
+        <div id="results-carousel" class="carousel results-carousel" style="width: 100%; max-width: 550px;">
+            <div>
+                <video style="width: 100%; max-width: 900px; margin-top: 30px; border: 2px solid black" muted playsinline autoplay loop controls>
+                    <source src="media/real-world/compressed-webm/sfp/non-streaming/may8-37s.webm">
+                </video>
+            </div>
+            <div>
+                <video style="width: 100%; max-width: 900px; margin-top: 30px; border: 2px solid black" muted playsinline autoplay loop controls>
+                    <source src="media/real-world/compressed-webm/sfp/non-streaming/may8-35s.webm">
+                </video>
+            </div>
+            <div>
+                <video style="width: 100%; max-width: 900px; margin-top: 30px; border: 2px solid black" muted playsinline autoplay loop controls>
+                    <source src="media/real-world/compressed-webm/sfp/streaming/may14-42s.webm">
+                </video>
+            </div>
+            <div>
+                <video style="width: 100%; max-width: 900px; margin-top: 30px; border: 2px solid black" muted playsinline autoplay loop controls>
+                    <source src="media/real-world/compressed-webm/sfp/streaming/may14-50s.webm">
+                    <!-- <source src="media/real-world/compressed-webm/sfp/non-streaming/may8-35s.webm"> -->
+                </video>
+            </div>
+        </div>
+        <script>
+            // https://bulma-carousel.onrender.com/
+            bulmaCarousel.attach('#results-carousel', {
+                slidesToScroll: 1,
+                slidesToShow: 1
+            });
+        </script>
+
+        <p class="inner-text left" style="margin-top: 10px; margin-bottom: 15px; width: 100%;">
+            We train streaming flow policy on a 7-DOF Franka FR3 robot arm to peform the task of picking up a green apple in the presence of clutter.
+            We provide human demonstrations via kinesthetic teaching.
+            The observations of the robot are raw RGB images, and the action space is the pose of the gripper.
+            We find that streaming flow policy produces smooth, fast and reactive motions while performing the task.
+            Streaming flow policy is faster and smoother than diffusion policy.
+        </p>
+
+        <figure style="margin-bottom: 10px; margin-top: 10px; margin-right: 2px; width: 100%">
+            <video style="width: 100%; max-width: 900px; mix-blend-mode: multiply;" muted playsinline autoplay loop controls>
+                <source src="media/real-world/dp-sfp-comparison.mp4">
             </video>
         </figure>
-        <br>
-
-    <p class="inner-text left" style="margin-bottom: 15px;">
-        We train streaming flow policy on a 7-DOF Franka FR3 robot arm to peform the task of picking up a green apple in the presence of clutter.
-        We provide human demonstrations via kinesthetic teaching.
-        The observations of the robot are raw RGB images, and the action space is the pose of the gripper.
-        We find that streaming flow policy produces smooth, fast and reactive motions while performing the task.
-    </p>
-
     </div>
     </div>
     </div>

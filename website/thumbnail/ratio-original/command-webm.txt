@@ -1,0 +1,2 @@
+ffmpeg -i thumbnail-1080p-origina.mp4 -vf scale=-1:240 -c:v libvpx -crf 18 -b:v 1M thumbnail-240p.webm
+
