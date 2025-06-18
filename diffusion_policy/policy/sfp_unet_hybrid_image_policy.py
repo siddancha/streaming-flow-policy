@@ -449,7 +449,7 @@ class SFPUnetHybridImagePolicy(BaseImagePolicy):
         # reshape B, T, ... to B*T
         this_nobs = dict_apply(nobs, 
             lambda x: x[:,:self.n_obs_steps,...].reshape(-1,*x.shape[2:]))
-        nobs_features = self.obs_encoder(this_nobs) #128, 66]
+        nobs_features = self.obs_encoder(this_nobs) # 216, 138 (64*2 +10, two cameras) or 74 (54 + 10, one camera)
         # reshape back to B, Do
         global_cond = nobs_features.reshape(batch_size, -1) #[64, 132]
         if self.use_action_traj:
