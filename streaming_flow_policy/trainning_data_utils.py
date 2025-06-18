@@ -251,11 +251,11 @@ def get_total_xt_ut_ot(x_seq, t, T = 16, k = 0, sigma = 0.01, device = torch.dev
     '''
     # x_seq: B, seq_len, action_dim
     # t: (B,)
-    x_t_list, v_t_list = [], []
-    # x_t, v_t = get_x_v_fast(x_seq, T, t, device)
     if biased_gripper: t = biased_sample(x_seq, t, T, prob=biased_prob)
     xt, ut = fast_get_x_v_tensor(x_seq, t, T, gripper_normalize=gripper_normalize, gripper_velocity=gripper_velocity)  # (B, D)
-    # print('ut', ut[0,:])
+    # debug: set gripper all to 0
+    # print('x_seq', x_seq[0, :, 0], 't', t[0])
+    # print('ut', ut[0, 0])
     # if not latent:
     added_noise = sigma * torch.exp(-k*t).unsqueeze(1) * torch.randn_like(xt)
     xt = xt + added_noise
@@ -266,5 +266,6 @@ def get_total_xt_ut_ot(x_seq, t, T = 16, k = 0, sigma = 0.01, device = torch.dev
     ut = -k * added_noise + ut
     # print('ut noise', ut[0,:])
     # print('\n')
+    # ut[:-1] = 0
 
     return xt, ut #(batch_size, action_dim)
