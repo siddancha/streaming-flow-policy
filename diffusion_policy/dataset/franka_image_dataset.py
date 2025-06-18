@@ -17,13 +17,18 @@ class FrankaPickImageDataset(BaseImageDataset):
             pad_after=0,
             seed=42,
             val_ratio=0.0,
-            max_train_episodes=None
+            max_train_episodes=None,
+            two_images=False,
             ):
 
         super().__init__()
         print(f'Loading FrankaImageDataset from {zarr_path}')
+        if two_images:
+            keylist = ['img', 'img2', 'state', 'action']
+        else:
+            keylist = ['img', 'state', 'action']
         self.replay_buffer = ReplayBuffer.copy_from_path(
-            zarr_path, keys=['img', 'state', 'action'])
+            zarr_path, keys=keylist)
         val_mask = get_val_mask(
             n_episodes=self.replay_buffer.n_episodes,
             val_ratio=val_ratio,
@@ -44,6 +49,7 @@ class FrankaPickImageDataset(BaseImageDataset):
         self.horizon = horizon
         self.pad_before = pad_before
         self.pad_after = pad_after
+        self.two_images = two_images
 
     def get_validation_dataset(self):
         val_set = copy.copy(self)
@@ -65,6 +71,11 @@ class FrankaPickImageDataset(BaseImageDataset):
         normalizer = LinearNormalizer()
         # normalizer.fit(data=data, last_n_dims=1, mode=mode, **kwargs)
         normalizer['image'] = get_image_range_normalizer()
+        if self.two_images: normalizer['image2'] = get_image_range_normalizer()
+        # if self.normalize:
+        #     stat = array_to_stats(self.replay_buffer['action'])
+        #     normalizer['action'] = normalizer_from_stat(stat)
+        
         normalizer['action'] = get_identity_normalizer()
         normalizer['agent_pos'] = get_identity_normalizer()
         return normalizer
@@ -75,12 +86,22 @@ class FrankaPickImageDataset(BaseImageDataset):
     def _sample_to_data(self, sample):
         agent_pos = sample['state'].astype(np.float32)
         image = np.moveaxis(sample['img'],-1,1)/255.
+        if self.two_images: image2 = np.moveaxis(sample['img2'],-1,1)/255.
+
+        if self.two_images:
+            obs = {
+                'image': image, # T, 3, 256, 256
+                'image2': image2, # T, 3, 256, 256
+                'agent_pos': agent_pos, # T, 10 
+            }
+        else:
+            obs = {
+                'image': image, # T, 3, 256, 256
+                'agent_pos': agent_pos, # T, 10 
+            }
 
         data = {
-            'obs': {
-                'image': image, # T, 3, 256, 256
-                'agent_pos': agent_pos, # T, 10
-            },
+            'obs': obs,
             'action': sample['action'].astype(np.float32) # T, 10
         }
         return data
@@ -93,8 +114,10 @@ class FrankaPickImageDataset(BaseImageDataset):
 
 
 def test():
-    zarr_path = './data/franka_pick.zarr'
+    zarr_path = './data/pushy.zarr'
     dataset = FrankaPickImageDataset(zarr_path, horizon=16)
+    for data in dataset:
+        print('image obs shape', data['obs']['image'].shape)
 
     # for i in range(1000):
     #     print(dataset.__getitem__(i)['action'][-1, -1],)
