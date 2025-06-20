@@ -55,6 +55,7 @@ use_3d_keypoint: true
 policy:
   _target_: diffusion_policy.policy.sfp_unet_hybrid_image_policy.SFPUnetHybridImagePolicy
   encode_agent_pos: false
+  two_camera_add: false # adding operation for 2 camera features
   crop_shape: #added for image
   - 204
   - 204
