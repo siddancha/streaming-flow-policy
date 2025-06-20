@@ -65,7 +65,7 @@ def main():
     # For push Y:
     ## chanded the camera mount 2 -> mount 1
     # changed the folder, save_path
-    two_images = True
+    two_images = True #use two cameras or not
     data_folders = ['data_unprocessed/pushy_v2']
     zarr_save_path = '/home/sfp/streaming-flow-policy/data/pushy_v3.zarr'
     crop_size = 256
