@@ -22,6 +22,8 @@ from diffusion_policy.common.pytorch_util import dict_apply, replace_submodules
 # added
 import numpy as np
 from streaming_flow_policy.trainning_data_utils import get_total_xt_ut_ot
+from types import MethodType
+import robomimic.utils.tensor_utils as TensorUtils
 
 class AgentPosEncoder(robomimic.models.base_nets.Module):
     def __init__(self, agent_pos_emb_dim=32):
@@ -43,6 +45,68 @@ class AgentPosEncoder(robomimic.models.base_nets.Module):
         # To make it an instance of robomimic.models.base_nets.Module
         return [self.agent_pos_emb_dim]
 
+def encoder_changed_forward(self, obs_dict):
+    """
+    Processes modalities according to the ordering in @self.obs_shapes. For each
+    modality, it is processed with a randomizer (if present), an encoder
+    network (if present), and again with the randomizer (if present), flattened,
+    and then concatenated with the other processed modalities.
+
+    Args:
+        obs_dict (OrderedDict): dictionary that maps modalities to torch.Tensor
+            batches that agree with @self.obs_shapes. All modalities in
+            @self.obs_shapes must be present, but additional modalities
+            can also be present.
+
+    Returns:
+        feats (torch.Tensor): flat features of shape [B, D]
+    """
+    assert self._locked, "ObservationEncoder: @make has not been called yet"
+
+    # ensure all modalities that the encoder handles are present
+    assert set(self.obs_shapes.keys()).issubset(obs_dict), "ObservationEncoder: {} does not contain all modalities {}".format(
+        list(obs_dict.keys()), list(self.obs_shapes.keys())
+    )
+
+    # process modalities by order given by @self.obs_shapes
+    feats = dict()
+    for k in self.obs_shapes:
+        x = obs_dict[k]
+        # maybe process encoder input with randomizer
+        if self.obs_randomizers[k] is not None:
+            x = self.obs_randomizers[k].forward_in(x)
+        # maybe process with obs net
+        if self.obs_nets[k] is not None:
+            x = self.obs_nets[k](x)
+            if self.activation is not None:
+                x = self.activation(x)
+        # maybe process encoder output with randomizer
+        if self.obs_randomizers[k] is not None:
+            x = self.obs_randomizers[k].forward_out(x)
+        # flatten to [B, D]
+        x = TensorUtils.flatten(x, begin_axis=1)
+        feats[k] = x
+    new_featas = [feats['image'] + feats['image2'], feats['agent_pos']] #added for two cameras
+    # concatenate all features together
+    return torch.cat(new_featas, dim=-1)
+
+def new_output_shape(self, input_shape=None):
+        """
+        Compute the output shape of the encoder.
+        """
+        feat_dim = 0
+        for k in self.obs_shapes:
+            if k == 'image2':
+                continue
+            feat_shape = self.obs_shapes[k]
+            if self.obs_randomizers[k] is not None:
+                feat_shape = self.obs_randomizers[k].output_shape_in(feat_shape)
+            if self.obs_nets[k] is not None:
+                feat_shape = self.obs_nets[k].output_shape(feat_shape)
+            if self.obs_randomizers[k] is not None:
+                feat_shape = self.obs_randomizers[k].output_shape_out(feat_shape)
+            feat_dim += int(np.prod(feat_shape))
+        return [feat_dim]
 
 class SFPUnetHybridImagePolicy(BaseImagePolicy):
     def __init__(self, 
@@ -70,7 +134,8 @@ class SFPUnetHybridImagePolicy(BaseImagePolicy):
             gripper_normalize = 1, #added
             biased_prob = 0.9, #added
             encode_agent_pos=False, #new added
-            streaming = False,
+            streaming = False, # added for real robot
+            two_camera_add =False, # added for real robot: add features of two cameras
             # parameters passed to step
             **kwargs):
         super().__init__()
@@ -139,6 +204,9 @@ class SFPUnetHybridImagePolicy(BaseImagePolicy):
             )
 
         obs_encoder = policy.nets['policy'].nets['encoder'].nets['obs']
+        if two_camera_add: 
+            obs_encoder.forward = MethodType(encoder_changed_forward, obs_encoder) # replace forward method
+            obs_encoder.output_shape = MethodType(new_output_shape, obs_encoder) # replace output_shape method
         
         if obs_encoder_group_norm:
             # replace batch norm with group norm
@@ -179,6 +247,8 @@ class SFPUnetHybridImagePolicy(BaseImagePolicy):
 
         # create diffusion model
         obs_feature_dim = obs_encoder.output_shape()[0]
+        print('-------------------------------')
+        print('obs_feature_dim', obs_feature_dim)
         input_dim = action_dim #+ obs_feature_dim
         global_cond_dim = None
         if obs_as_global_cond:
