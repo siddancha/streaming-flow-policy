@@ -53,21 +53,25 @@ def get_validstep_ids(traj_qpos, valid_delta=8e-3) -> list:
         Array of valid entry ids
     """
     truncated_ids = [0]
+    removed_ids = []
     for k in range(traj_qpos.shape[0]):
         delta_dist = np.linalg.norm(traj_qpos[k] - traj_qpos[truncated_ids[-1]])
         if delta_dist < valid_delta:
+            # removed_ids.append(k)
             continue
         truncated_ids.append(k)
+    # print('removed ids:', removed_ids)
     return truncated_ids
 
 
 def main():
+    valid_delta = 10e-3  
     # For push Y:
     ## chanded the camera mount 2 -> mount 1
     # changed the folder, save_path
     two_images = True #use two cameras or not
-    data_folders = ['data_unprocessed/pushy_v2']
-    zarr_save_path = '/home/sfp/streaming-flow-policy/data/pushy_v3.zarr'
+    data_folders = ['data_unprocessed/pushy_v2', 'data_unprocessed/pushy_v3']
+    zarr_save_path = '/home/sfp/streaming-flow-policy/data/pushy_v5.zarr' # larger threshold for removing steps
     crop_size = 256
     pkl_files = []
     for data_folder in data_folders:
@@ -77,23 +81,25 @@ def main():
     all_rgb, all_rgb2, all_state, all_action, episode_end = [], [], [], [], []
 
 
-
+    raw_steps = 0
+    valid_steps = 0
     for pkl_filename in tqdm(pkl_files):
         print(f'Processing {pkl_filename}')
         raw_data = np.load(pkl_filename, allow_pickle=True)
         print(f'Data loaded. {len(raw_data)} steps')
+        raw_steps += len(raw_data)
         onetraj_rgb, onetraj_rgb2, onetraj_state_v1 = [], [], []
-
-        valid_trajectory = raw_data
+        valid_step_ids = get_validstep_ids(np.asarray([step['qpos'] for step in raw_data]), valid_delta=valid_delta)    
+        valid_trajectory = np.take(raw_data, valid_step_ids, axis=0)
         print(f'{len(valid_trajectory)} valid steps after truncating')
+        valid_steps += len(valid_trajectory)
+        # print(f'valid idx {np.array(valid_step_ids)}')
+
 
         for step in valid_trajectory:
             onetraj_rgb.append(preprocess_rgb(step['mount1']['rgb_im'], crop_size))
             if two_images:
                 onetraj_rgb2.append(preprocess_rgb(step['robot1_hand']['rgb_im'], crop_size))
-                # concat_img = np.concatenate([preprocess_rgb(step['mount1']['rgb_im'], crop_size), 
-                #                         preprocess_rgb(step['robot1_hand']['rgb_im'], crop_size)], axis=-1)
-                # onetraj_rgb.append(concat_img)
             
             onetraj_state_v1.append(get_state(step))
 
@@ -112,6 +118,7 @@ def main():
             all_action.extend(onetraj_action)
             episode_end.append(len(all_rgb))
 
+    print(f'Raw steps: {raw_steps}, valid steps: {valid_steps}')
     store = zarr.DirectoryStore(zarr_save_path)
     root = zarr.group(store=store, overwrite=True)
     # Create the 'data' group
