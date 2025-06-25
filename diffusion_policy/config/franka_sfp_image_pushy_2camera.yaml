@@ -4,15 +4,15 @@ checkpoint:
   save_last_snapshot: false
   topk:
     format_str: epoch={epoch:04d}-train_loss={train_loss:.3f}-val_loss={val_loss:.3f}.ckpt
-    k: 5
+    k: 20
     mode: min
-    monitor_key: val_loss
+    monitor_key: train_loss
 dataloader:
   batch_size: 108
   num_workers: 8
   persistent_workers: false
   pin_memory: true
-  shuffle: true
+  # shuffle: true
 dataset_obs_steps: 2
 ema:
   _target_: diffusion_policy.model.diffusion.ema_model.EMAModel
@@ -54,6 +54,7 @@ keypoint_featnpos_dim: 4
 use_3d_keypoint: true
 policy:
   _target_: diffusion_policy.policy.sfp_unet_hybrid_image_policy.SFPUnetHybridImagePolicy
+  multi_gpu: false #added
   encode_agent_pos: false
   two_camera_add: false # adding operation for 2 camera features
   crop_shape: #added for image
@@ -134,7 +135,7 @@ task:
     pad_before: 1
     seed: 42
     val_ratio: 0.02
-    zarr_path: data/pushy_v3.zarr
+    zarr_path: data/pushy_v4.zarr
     two_images: true
   image_shape:
   - 3
@@ -161,7 +162,7 @@ task:
         type: rgb
     
 training:
-  checkpoint_every: 50
+  checkpoint_every: 25
   debug: false
   device: cuda:0
   gradient_accumulate_every: 1
@@ -177,11 +178,11 @@ training:
   seed: 42
   tqdm_interval_sec: 1.0
   use_ema: true
-  val_every: 10
+  val_every: 25
   x_t_sigma: 0.2 # added
 val_dataloader:
   batch_size: 108
   num_workers: 8
   persistent_workers: false
   pin_memory: true
-  shuffle: false
+  # shuffle: false
