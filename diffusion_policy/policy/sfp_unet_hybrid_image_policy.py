@@ -24,6 +24,10 @@ import numpy as np
 from streaming_flow_policy.trainning_data_utils import get_total_xt_ut_ot
 from types import MethodType
 import robomimic.utils.tensor_utils as TensorUtils
+# two gpus
+import os
+from torch.nn.parallel import DistributedDataParallel as DDP
+import torch.distributed as dist
 
 class AgentPosEncoder(robomimic.models.base_nets.Module):
     def __init__(self, agent_pos_emb_dim=32):
@@ -136,6 +140,7 @@ class SFPUnetHybridImagePolicy(BaseImagePolicy):
             encode_agent_pos=False, #new added
             streaming = False, # added for real robot
             two_camera_add =False, # added for real robot: add features of two cameras
+            multi_gpu = False,
             # parameters passed to step
             **kwargs):
         super().__init__()
@@ -270,6 +275,26 @@ class SFPUnetHybridImagePolicy(BaseImagePolicy):
 
         self.obs_encoder = obs_encoder
         self.model = model
+        if multi_gpu:
+            # self.model = nn.DataParallel(self.model).cuda()   # for multiple gpu training
+            # self.obs_encoder = nn.DataParallel(self.obs_encoder).cuda()   # for multiple gpu training
+            # 2) Figure out this process's local GPU
+            local_rank = int(os.environ["LOCAL_RANK"])
+            torch.cuda.set_device(local_rank)
+            self.new_device = torch.device('cuda', local_rank)
+
+            dist.init_process_group(backend="nccl")
+
+            # 3) Build model & move to right device
+            model = model.to(self.new_device)
+            self.model = DDP(model, device_ids=[local_rank], output_device=local_rank)
+
+            obs_encoder = obs_encoder.to(self.new_device)
+            self.obs_encoder = DDP(obs_encoder, device_ids=[local_rank], output_device=local_rank)
+        else:
+            self.new_device = self.device
+
+
         self.mask_generator = LowdimMaskGenerator(
             action_dim=action_dim,
             obs_dim=0 if obs_as_global_cond else obs_feature_dim,
@@ -528,12 +553,12 @@ class SFPUnetHybridImagePolicy(BaseImagePolicy):
             action_traj = nobs['agent_pos'][:, 1:, :] #[64, 18, 2] -> [64, 17, 2] #action_traj = obs[:,1:,-2:] #[256, 17, 2]
 
         # sample a random time step in Uniform(0, 1)
-        t = torch.rand(action_traj.shape[0]).float().to(self.device)
+        t = torch.rand(action_traj.shape[0]).float().to(self.new_device)
         # sample q(t) ~ N(q̃(t), σ₀ exp(-kt))
         # calculate velosity at time t: u = -k * (qt - q̃t) + ṽt 
         # print('action_traj', action_traj.shape, 't', t.shape, 'T', self.horizon)
         xt, ut = get_total_xt_ut_ot(action_traj, t = t, T = self.horizon, k = self.k,
-                                    sigma = x_t_sigma, device=self.device,
+                                    sigma = x_t_sigma, device=self.new_device,
                                     #### TODO: robomimic check
                                     # gripper_no_noise = self.gripper_no_noise, gripper_normalize = self.gripper_normalize,
                                     # biased_prob = self.biased_prob, 
