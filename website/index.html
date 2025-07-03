@@ -513,6 +513,9 @@ div.underwater-results-carousel .slider-navigation-previous {
                     <a class="nav-link" href="#marginal-flow">Marginal-flow</a>
                 </li>
                 <li class="nav-item"></li>
+                    <a class="nav-link" href="#pusht-multimodality">Multimodal sampling</a>
+                </li>
+                <li class="nav-item"></li>
                     <a class="nav-link" href="#decoupling-stochasticity">Decoupling-Stochasticity</a>
                 </li>
                 <li class="nav-item"></li>
@@ -838,6 +841,36 @@ div.underwater-results-carousel .slider-navigation-previous {
     Streaming flow policy is able to both ✅ <b st>represent multi-modal distributions</b> over action trajectories
     like diffusion/flow policies, while also being ✅ <b>able to stream actions</b> during the flow sampling process.
 </p>
+
+    </div>
+    </div>
+    </div>
+    </section>
+
+    <section class="is-light">
+        <!-- dummy anchor to adjust for navbar height -->
+        <span class="nav-anchor" id="pusht-multimodality"></span>
+    <div class="columns is-centered">
+    <div class="column has-text-centered">
+
+    <div class="container">
+        <div style="font-size: 35px">Multimodal sampling in Push-T</div>
+
+    <figure style="margin-bottom: 15px; width: 100%; max-width: 900px; align-items: center; padding-top: 35px; padding-bottom: 5px;">
+        <figcaption style="width: 80%; max-width: 900px; text-align: center; margin: 0 auto;">
+            <div style="font-size: 18px; width: 25%; display: inline-block; text-align: center;">Diffusion policy <a href="https://diffusion-policy.cs.columbia.edu/" target="_blank">[1]</a></div>
+            <div style="font-size: 20px; width: 74%; display: inline-block; text-align: center; font-weight: 500;">Streaming flow policy</div>
+        </figcaption>
+        <img src="media/pusht-multimodality/pusht-multimodality.webp" style="max-height: 350px; width: 80%; max-width: 900px; padding-bottom: 5px; mix-blend-mode: multiply;">
+        <figcaption style="font-size: 17px; width:100%; max-width: 900px;">
+            Sampling multimodal action trajectories from policies trained on the Push-T dataset. Similar to diffusion policy, streaming flow policy samples multimodal trajectories in both symmetric and asymmetric configurations.
+        </figcaption>
+    </figure>
+    <br>
+
+    <p class="inner-text left" style="margin-bottom: 15px;">
+        We traind a streaming flow policy on the Push-T dataset <a href="https://diffusion-policy.cs.columbia.edu/" target="_blank">[1]</a>, and visualize rollouts from the policy from various configurations. <b>(a)</b>&nbsp;Chi et. al. <a href="https://diffusion-policy.cs.columbia.edu/" target="_blank">[1]</a> report that a diffusion policy trained on the Push-T dataset samples multimodal action trajectories when starting from initial configurations that are symmetric with respect to block, goal pose and the agent (pusher). <b>(b)</b> We find the same to hold true for a streaming flow policy with the same architecture trained on the Push-T dataset. Going a step further, we visualize sampled action trajectories in <i>asymmetric</i> configurations, as shown in <b>(c, d)</b>. We find that streaming flow policy produces highly multimodal behaviors here as well, capturing diverse and valid behaviors to push the block towards the goal pose.
+    </p>
 
     </div>
     </div>
