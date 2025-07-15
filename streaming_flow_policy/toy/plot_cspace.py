@@ -20,7 +20,7 @@ def plot_probability_density(
     Args:
         fp (StreamingFlowPolicyCSpace): Flow policy.
         ts (Tensor, dtype=float, shape=(T, X)): Time values in [0,1].
-        xs (Tensor, dtype=float, shape=(T, X)): Configuration values.
+        xs (Tensor, dtype=float, shape=(T, X)): Action values.
         ax (plt.Axes): Axes to plot on.
         normalize (bool): Whether to normalize the probability density.
         alpha (float): Alpha value for the probability density.
@@ -35,7 +35,7 @@ def plot_probability_density(
     ax.set_ylim(0, 1)
     ax.tick_params(axis='both', which='both', length=0, labelbottom=False, labelleft=False)
 
-    ax.set_xlabel('Configuration')
+    ax.set_xlabel('Action')
     ax.set_ylabel('Time ⟶')
 
     extent = [xs.min(), xs.max(), ts.min(), ts.max()]
