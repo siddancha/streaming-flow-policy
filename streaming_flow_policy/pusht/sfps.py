@@ -22,19 +22,19 @@ class StreamingFlowPolicyStochastic (Policy):
         """
         Conditional flow:
         • At time t=0, we sample:
-            • q₀ ~ N(ξ(0), σ₀)
+            • a₀ ~ N(ξ(0), σ₀)
             • z₀ ~ N(0, 1)
 
         • Flow trajectory at time t:
-            • q(t) = q₀ + (ξ(t) - ξ(0)) + (σᵣt) z₀
+            • a(t) = a₀ + (ξ(t) - ξ(0)) + (σᵣt) z₀
             • z(t) = (1 - (1-σ₁)t)z₀ + tξ(t)
               • z starts from a pure noise sample z₀ that drifts towards the
-              trajectory. Therefore, z(t) is uncorrelated with q at t=0, but
+              trajectory. Therefore, z(t) is uncorrelated with a at t=0, but
               eventually becomes very informative of the trajectory.
 
         • Conditional velocity field:
-            • vq(q, z, t) = ξ̇(t) + σᵣz₀
-            • vz(q, z, t) = ξ(t) + tξ̇(t) - (1-σ₁)z₀
+            • va(a, z, t) = ξ̇(t) + σᵣz₀
+            • vz(a, z, t) = ξ(t) + tξ̇(t) - (1-σ₁)z₀
 
         Args:
             velocity_net (nn.Module): velocity network
@@ -69,9 +69,9 @@ class StreamingFlowPolicyStochastic (Policy):
         Returns:
             Dict[str, np.ndarray]:
                 'obs' (np.ndarray, shape=(OBS_HORIZON, OBS_DIM), dtype=np.float32)
-                'q' (np.ndarray, shape=(1, ACTION_DIM), dtype=np.float32): configuration
+                'a' (np.ndarray, shape=(1, ACTION_DIM), dtype=np.float32): action
                 'z' (np.ndarray, shape=(1, ACTION_DIM), dtype=np.float32): latent variable
-                'vq' (np.ndarray, shape=(1, ACTION_DIM), dtype=np.float32): target q-velocity
+                'va' (np.ndarray, shape=(1, ACTION_DIM), dtype=np.float32): target a-velocity
                 'vz' (np.ndarray, shape=(1, ACTION_DIM), dtype=np.float32): target z-velocity
                 't' (np.ndarray, shape=(,), dtype=np.float32): time
         """
@@ -108,22 +108,22 @@ class StreamingFlowPolicyStochastic (Policy):
         # Sample z0 from N(0, 1)
         z0 = np.random.randn(1, ACTION_DIM)  # (1, ACTION_DIM)
 
-        # Sample qt
-        ε_q0 =  σ0 * np.random.randn(1, ACTION_DIM)  # (1, ACTION_DIM)
-        qt = ξt + ε_q0 + σr * time * z0  # (1, ACTION_DIM)
+        # Sample at
+        ε_a0 =  σ0 * np.random.randn(1, ACTION_DIM)  # (1, ACTION_DIM)
+        at = ξt + ε_a0 + σr * time * z0  # (1, ACTION_DIM)
 
         # Sample zt
         zt = (1 - (1-σ1) * time) * z0 + time * ξt
 
         # Compute conditional flow
-        vq = ξ̇t + σr * z0  # (1, ACTION_DIM)
+        va = ξ̇t + σr * z0  # (1, ACTION_DIM)
         vz = ξt + time * ξ̇t - (1 - σ1) * z0  # (1, ACTION_DIM)
 
         return {
             'obs': obs,  # (OBS_HORIZON, OBS_DIM)
-            'q': qt.astype(np.float32),  # (1, ACTION_DIM)
+            'a': at.astype(np.float32),  # (1, ACTION_DIM)
             'z': zt.astype(np.float32),  # (1, ACTION_DIM)
-            'vq': vq.astype(np.float32),  # (1, ACTION_DIM)
+            'va': va.astype(np.float32),  # (1, ACTION_DIM)
             'vz': vz.astype(np.float32),  # (1, ACTION_DIM)
             't': time,  # (,)
         }
@@ -134,9 +134,9 @@ class StreamingFlowPolicyStochastic (Policy):
         Args:
             batch (Dict[str, Tensor]):
                 'obs' (Tensor, shape=(B, OBS_HORIZON, OBS_DIM))
-                'q' (Tensor, shape=(B, 1, ACTION_DIM))
+                'a' (Tensor, shape=(B, 1, ACTION_DIM))
                 'z' (Tensor, shape=(B, 1, ACTION_DIM), dtype=np.float32): latent variable
-                'vq' (Tensor, shape=(B, 1, ACTION_DIM), dtype=np.float32): target q-velocity
+                'va' (Tensor, shape=(B, 1, ACTION_DIM), dtype=np.float32): target a-velocity
                 'vz' (Tensor, shape=(B, 1, ACTION_DIM), dtype=np.float32): target z-velocity
                 't' (Tensor, shape=(B,)): time
 
@@ -145,9 +145,9 @@ class StreamingFlowPolicyStochastic (Policy):
         """
         # device transfer
         obs = batch['obs'].to(self.device)  # (B, OBS_HORIZON, OBS_DIM)
-        q = batch['q'].to(self.device)  # (B, 1, ACTION_DIM)
+        a = batch['a'].to(self.device)  # (B, 1, ACTION_DIM)
         z = batch['z'].to(self.device)  # (B, 1, ACTION_DIM)
-        vq = batch['vq'].to(self.device)  # (B, 1, ACTION_DIM)
+        va = batch['va'].to(self.device)  # (B, 1, ACTION_DIM)
         vz = batch['vz'].to(self.device)  # (B, 1, ACTION_DIM)
         t = batch['t'].to(self.device)  # (B,)
         B = obs.shape[0]
@@ -155,9 +155,9 @@ class StreamingFlowPolicyStochastic (Policy):
         # observation as FiLM conditioning
         obs_cond = obs.flatten(start_dim=1)  # (B, OBS_HORIZON * OBS_DIM)
 
-        # concatenate q and z
-        x = torch.cat((q, z), dim=-2)  # (B, 2, ACTION_DIM)
-        v_target = torch.cat((vq, vz), dim=-2)  # (B, 2, ACTION_DIM)
+        # concatenate a and z
+        x = torch.cat((a, z), dim=-2)  # (B, 2, ACTION_DIM)
+        v_target = torch.cat((va, vz), dim=-2)  # (B, 2, ACTION_DIM)
 
         # predict the velocity
         v_pred = self.velocity_net(
@@ -192,11 +192,11 @@ class StreamingFlowPolicyStochastic (Policy):
             rtol=1e-4,
         )
 
-        # Set to current configuration.
-        q0 = nobs[-1, :2]  # (ACTION_DIM,)
+        # Set to current action.
+        a0 = nobs[-1, :2]  # (ACTION_DIM,)
 
         # Sample latent variable -- this is the stochastic step.
-        z0 = torch.randn_like(q0)  # (ACTION_DIM,)
+        z0 = torch.randn_like(a0)  # (ACTION_DIM,)
 
         # Integration time steps.
         num_actions = num_actions or self.pred_horizon.item()
@@ -211,7 +211,7 @@ class StreamingFlowPolicyStochastic (Policy):
             integration_steps_per_action,
         )
 
-        x0 = torch.stack((q0, z0), dim=0)  # (2, ACTION_DIM)
+        x0 = torch.stack((a0, z0), dim=0)  # (2, ACTION_DIM)
         traj = ode_solver.trajectory(x=x0, t_span=t_span)  # (K, 2, ACTION_DIM)
 
         naction = traj[select_action_indices, 0, :]  # (NUM_ACTIONS, ACTION_DIM)
