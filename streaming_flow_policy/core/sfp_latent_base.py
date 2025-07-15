@@ -19,8 +19,8 @@ class StreamingFlowPolicyLatentBase (StreamingFlowPolicyBase):
         σ0: float,
     ):
         """
-        Flow policy is an extended configuration space (q(t), z(t)) where q is
-        the original trajectory and z is a noise variable that starts from
+        Flow policy is an extended state space (a(t), z(t)) where a is
+        the original action trajectory and z is a noise variable that starts from
         N(0, 1).
 
         Args:
@@ -30,7 +30,7 @@ class StreamingFlowPolicyLatentBase (StreamingFlowPolicyBase):
             σ0 (float): Standard deviation of the Gaussian tube at time t=0.
         """
         super().__init__(
-            dim = 2 * dim,  # twice the dimension because of q and z
+            dim = 2 * dim,  # twice the dimension because of a and z
             trajectories = trajectories,
             prior = prior,
         )
@@ -41,7 +41,7 @@ class StreamingFlowPolicyLatentBase (StreamingFlowPolicyBase):
         return self.X // 2
 
     @cached_property
-    def slice_q(self) -> slice:
+    def slice_a(self) -> slice:
         return slice(0, self.D)
 
     @cached_property
@@ -70,10 +70,10 @@ class StreamingFlowPolicyLatentBase (StreamingFlowPolicyBase):
         ])  # (2D, 2D)
         return μ0, Σ0
 
-    def μΣt_zCa(self, traj: Trajectory, t: Tensor, q: Tensor) -> Tuple[Tensor, Tensor]:
+    def μΣt_zCa(self, traj: Trajectory, t: Tensor, a: Tensor) -> Tuple[Tensor, Tensor]:
         """
         Compute the mean and covariance matrix of the conditional flow of z
-        given q at time t.
+        given a at time t.
 
         Args:
             traj (Trajectory): Demonstration trajectory.
@@ -84,58 +84,58 @@ class StreamingFlowPolicyLatentBase (StreamingFlowPolicyBase):
             Tensor, dtype=default, shape=(*BS, D): Mean at time t.
             Tensor, dtype=default, shape=(*BS, D, D): Covariance matrix at time t.
         """
-        μ_qz, Σ_qz = self.μΣt(traj, t)  # (*BS, 2D), (*BS, 2D, 2D)
-        μq, μz = μ_qz[..., self.slice_q], μ_qz[..., self.slice_z]  # (*BS, D) and (*BS, D)
+        μ_az, Σ_az = self.μΣt(traj, t)  # (*BS, 2D), (*BS, 2D, 2D)
+        μa, μz = μ_az[..., self.slice_a], μ_az[..., self.slice_z]  # (*BS, D) and (*BS, D)
         
-        Σqq = Σ_qz[..., self.slice_q, self.slice_q]  # (*BS, D, D)
-        Σqz = Σ_qz[..., self.slice_q, self.slice_z]  # (*BS, D, D)
-        Σzq = Σ_qz[..., self.slice_z, self.slice_q]  # (*BS, D, D)
-        Σzz = Σ_qz[..., self.slice_z, self.slice_z]  # (*BS, D, D)
+        Σaa = Σ_az[..., self.slice_a, self.slice_a]  # (*BS, D, D)
+        Σaz = Σ_az[..., self.slice_a, self.slice_z]  # (*BS, D, D)
+        Σza = Σ_az[..., self.slice_z, self.slice_a]  # (*BS, D, D)
+        Σzz = Σ_az[..., self.slice_z, self.slice_z]  # (*BS, D, D)
 
         # Repeated computation
-        Σqq_inv = torch.inverse(Σqq)  # (*BS, D, D)
+        Σaa_inv = torch.inverse(Σaa)  # (*BS, D, D)
 
         # From https://en.wikipedia.org/wiki/Multivariate_normal_distribution#Conditional_distributions
-        μ_zCq = μz + (Σzq @ Σqq_inv @ (q - μq).unsqueeze(-1)).squeeze(-1)  # (*BS, D)
-        Σ_zCq = Σzz - Σzq @ Σqq_inv @ Σqz  # (*BS, D, D)
+        μ_zCa = μz + (Σza @ Σaa_inv @ (a - μa).unsqueeze(-1)).squeeze(-1)  # (*BS, D)
+        Σ_zCa = Σzz - Σza @ Σaa_inv @ Σaz  # (*BS, D, D)
 
-        return μ_zCq, Σ_zCq
+        return μ_zCa, Σ_zCa
 
-    def log_pdf_conditional_q(self, traj: Trajectory, q: Tensor, t: Tensor) -> Tensor:
+    def log_pdf_conditional_a(self, traj: Trajectory, a: Tensor, t: Tensor) -> Tensor:
         """
-        Compute log-probability of the conditional flow at configuration q and time
-        t, for the given trajectory.
+        Compute log-probability of the conditional flow at action a and time t,
+        for the given trajectory.
         
         Args:
             traj (Trajectory): Demonstration trajectory.
-            q (Tensor, dtype=default, shape=(*BS, D)): Configuration.
+            a (Tensor, dtype=default, shape=(*BS, D)): Action.
             t (Tensor, dtype=default, shape=(*BS)): Time value in [0,1].
             
         Returns:
             (Tensor, dtype=default, shape=(*BS)): Log-probability of the
-                conditional flow at configuration q and time t.
+                conditional flow at action a and time t.
         """
-        μ_qz, Σ_qz = self.μΣt(traj, t)  # (*BS, 2D), (*BS, 2D, 2D)
-        μ_q = μ_qz[..., self.slice_q]  # (*BS, D)
-        Σ_q = Σ_qz[..., self.slice_q, self.slice_q]  # (*BS, D, D)
-        dist = MultivariateNormal(loc=μ_q, covariance_matrix=Σ_q)  # BS=(*BS) ES=(D,)
-        return dist.log_prob(q)  # (*BS)
+        μ_az, Σ_az = self.μΣt(traj, t)  # (*BS, 2D), (*BS, 2D, 2D)
+        μ_a = μ_az[..., self.slice_a]  # (*BS, D)
+        Σ_a = Σ_az[..., self.slice_a, self.slice_a]  # (*BS, D, D)
+        dist = MultivariateNormal(loc=μ_a, covariance_matrix=Σ_a)  # BS=(*BS) ES=(D,)
+        return dist.log_prob(a)  # (*BS)
 
-    def log_pdf_marginal_q(self, q: Tensor, t: Tensor) -> Tensor:
+    def log_pdf_marginal_a(self, a: Tensor, t: Tensor) -> Tensor:
         """
-        Compute log-probability of the marginal flow at configuration q and time t.
+        Compute log-probability of the marginal flow at action a and time t.
         
         Args:
-            q (Tensor, dtype=default, shape=(*BS, D)): Configuration.
+            a (Tensor, dtype=default, shape=(*BS, D)): Action.
             t (Tensor, dtype=default, shape=(*BS)): Time value in [0,1].
             
         Returns:
             (Tensor, dtype=default, shape=(*BS)): Log-probability of the marginal
-                flow at configuration q and time t.
+                flow at action a and time t.
         """
         log_pdf = torch.tensor(-torch.inf, dtype=torch.get_default_dtype())
         for π, traj in zip(self.π, self.trajectories):
-            log_pdf_i = π.log() + self.log_pdf_conditional_q(traj, q, t)  # (*BS)
+            log_pdf_i = π.log() + self.log_pdf_conditional_a(traj, a, t)  # (*BS)
             log_pdf = torch.logaddexp(log_pdf, log_pdf_i)  # (*BS)
         return log_pdf  # (*BS)
 
@@ -152,9 +152,9 @@ class StreamingFlowPolicyLatentBase (StreamingFlowPolicyBase):
             (Tensor, dtype=default, shape=(*BS)): Log-probability of the
                 conditional flow at latent z and time t.
         """
-        μ_qz, Σ_qz = self.μΣt(traj, t)  # (*BS, 2D), (*BS, 2D, 2D)
-        μ_z = μ_qz[..., self.slice_z]  # (*BS, D)
-        Σ_z = Σ_qz[..., self.slice_z, self.slice_z]  # (*BS, D, D)
+        μ_az, Σ_az = self.μΣt(traj, t)  # (*BS, 2D), (*BS, 2D, 2D)
+        μ_z = μ_az[..., self.slice_z]  # (*BS, D)
+        Σ_z = Σ_az[..., self.slice_z, self.slice_z]  # (*BS, D, D)
         dist = MultivariateNormal(loc=μ_z, covariance_matrix=Σ_z)  # BS=(*BS) ES=(D,)
         return dist.log_prob(z)  # (*BS)
 
@@ -176,21 +176,21 @@ class StreamingFlowPolicyLatentBase (StreamingFlowPolicyBase):
             log_pdf = torch.logaddexp(log_pdf, log_pdf_i)  # (*BS)
         return log_pdf  # (*BS)
 
-    def pdf_posterior_ξCq(self, q: Tensor, t: Tensor) -> Tensor:
+    def pdf_posterior_ξCa(self, a: Tensor, t: Tensor) -> Tensor:
         """
-        Compute probability p(ξ | q, t) of the posterior distribution of ξ
-        given q and t.
+        Compute probability p(ξ | a, t) of the posterior distribution of ξ
+        given a and t.
 
         Args:
-            q (Tensor, dtype=default, shape=(*BS, D)): Configuration.
+            a (Tensor, dtype=default, shape=(*BS, D)): Action.
             t (Tensor, dtype=default, shape=(*BS)): Time value in [0,1].
 
         Returns:
-            (Tensor, dtype=default, shape=(*BS, K)): p(ξ | q, t).
+            (Tensor, dtype=default, shape=(*BS, K)): p(ξ | a, t).
         """
         list_log_pdf: List[Tensor] = []
         for π, traj in zip(self.π, self.trajectories):
-            log_pdf_i = π.log() + self.log_pdf_conditional_q(traj, q, t)  # (*BS)
+            log_pdf_i = π.log() + self.log_pdf_conditional_a(traj, a, t)  # (*BS)
             list_log_pdf.append(log_pdf_i)
         log_pdf = torch.stack(list_log_pdf, dim=-1)  # (*BS, K)
         return torch.softmax(log_pdf, dim=-1)  # (*BS, K)
@@ -215,25 +215,25 @@ class StreamingFlowPolicyLatentBase (StreamingFlowPolicyBase):
         return torch.softmax(log_pdf, dim=-1)  # (*BS, K)
 
     @abstractmethod
-    def 𝔼vq_conditional(self, traj: Trajectory, q: Tensor, t: Tensor) -> Tensor:
+    def 𝔼va_conditional(self, traj: Trajectory, a: Tensor, t: Tensor) -> Tensor:
         """
-        Compute the expected velocity field of q over z given q, t and a trajectory.
+        Compute the expected velocity field of a over z given a, t and a trajectory.
 
         Args:
             traj (Trajectory): Demonstration trajectory.
-            q (Tensor, dtype=default, shape=(*BS, D)): Configuration.
+            a (Tensor, dtype=default, shape=(*BS, D)): Action.
             t (Tensor, dtype=default, shape=(*BS)): Time value in [0,1].
 
         Returns:
             (Tensor, dtype=default, shape=(*BS, D)):
-                expected value of vq over z given q, t and a trajectory.
+                expected value of va over z given a, t and a trajectory.
         """
         raise NotImplementedError
 
     @abstractmethod
     def 𝔼vz_conditional(self, traj: Trajectory, z: Tensor, t: Tensor) -> Tensor:
         """
-        Compute the expected velocity field of z over q given z, t and a trajectory.
+        Compute the expected velocity field of z over a given z, t and a trajectory.
 
         Args:
             traj (Trajectory): Demonstration trajectory.
@@ -246,29 +246,29 @@ class StreamingFlowPolicyLatentBase (StreamingFlowPolicyBase):
         """
         raise NotImplementedError
 
-    def 𝔼vq_marginal(self, q: Tensor, t: Tensor) -> Tensor:
+    def 𝔼va_marginal(self, a: Tensor, t: Tensor) -> Tensor:
         """
-        Compute the expected velocity field of q over z given q, t.
+        Compute the expected velocity field of a over z given a, t.
 
         Args:
-            q (Tensor, dtype=default, shape=(*BS, D)): Configuration.
+            a (Tensor, dtype=default, shape=(*BS, D)): Action.
             t (Tensor, dtype=default, shape=(*BS)): Time value in [0,1].
 
         Returns:
             (Tensor, dtype=default, shape=(*BS, D)):
-                expected value of vq given q, t.
+                expected value of va given a, t.
         """
-        posterior_ξ = self.pdf_posterior_ξCq(q, t)  # (*BS, K)
+        posterior_ξ = self.pdf_posterior_ξCa(a, t)  # (*BS, K)
         posterior_ξ = posterior_ξ.unsqueeze(-2)  # (*BS, 1, K)
-        𝔼vq = torch.stack([
-            self.𝔼vq_conditional(traj, q, t)  # (*BS, D)
+        𝔼va = torch.stack([
+            self.𝔼va_conditional(traj, a, t)  # (*BS, D)
             for traj in self.trajectories
         ], dim=-1)  # (*BS, D, K)
-        return (posterior_ξ * 𝔼vq).sum(dim=-1)  # (*BS, D)
+        return (posterior_ξ * 𝔼va).sum(dim=-1)  # (*BS, D)
 
     def 𝔼vz_marginal(self, z: Tensor, t: Tensor) -> Tensor:
         """
-        Compute the expected velocity field of z over q given z, t.
+        Compute the expected velocity field of z over a given z, t.
 
         Args:
             z (Tensor, dtype=default, shape=(*BS, D)): Latent variable value.
@@ -276,7 +276,7 @@ class StreamingFlowPolicyLatentBase (StreamingFlowPolicyBase):
 
         Returns:
             (Tensor, dtype=default, shape=(*BS, D)):
-                expected value of vz over q given z, t.
+                expected value of vz over a given z, t.
         """
         posterior_ξ = self.pdf_posterior_ξCz(z, t)  # (*BS, K)
         posterior_ξ = posterior_ξ.unsqueeze(-2)  # (*BS, 1, K)
