@@ -33,7 +33,7 @@ class StreamingFlowPolicyBase (ABC):
             t (Tensor, dtype=default, shape=(*BS)): Time values in [0,1].
 
         Returns:
-            Tensor, dtype=default, shape=(*BS, X): Configuration values at time t.
+            Tensor, dtype=default, shape=(*BS, X): Action values at time t.
         """
         BS = t.shape
         ξt = traj.vector_values(t.ravel().cpu().numpy())  # (X, *BS)

@@ -19,7 +19,7 @@ class StreamingFlowPolicyLatentBad (StreamingFlowPolicyLatentBase):
         k: float = 0.0,
     ):
         """
-        Flow policy is an extended configuration space (q(t), z(t)) where q is
+        Flow policy is an extended state space (a(t), z(t)) where a is
         the original trajectory and z is a noise variable that starts from
         N(0, 1).
 
@@ -29,14 +29,14 @@ class StreamingFlowPolicyLatentBad (StreamingFlowPolicyLatentBase):
 
         Conditional flow:
         • At time t=0, we sample:
-            • q₀ ~ N(ξ(0), σ₀²)
+            • a₀ ~ N(ξ(0), σ₀²)
             • z₀ ~ N(0, 1)
 
         • Flow trajectory at time t:
-            • q(t) = ξ(t) + (q₀ - ξ(0) + σᵣtz₀) exp(-kt)
+            • a(t) = ξ(t) + (a₀ - ξ(0) + σᵣtz₀) exp(-kt)
             • z(t) = (1 - (1-σ₁)t)z₀ + tξ(t)
               • z starts from a pure noise sample z₀ that drifts towards the
-              trajectory. Therefore, z(t) is uncorrelated with q at t=0, but
+              trajectory. Therefore, z(t) is uncorrelated with a at t=0, but
               eventually becomes very informative of the trajectory.
 
         Args:
@@ -95,19 +95,19 @@ class StreamingFlowPolicyLatentBad (StreamingFlowPolicyLatentBase):
         Compute the conditional velocity field for a given trajectory.
 
         • Flow trajectory at time t:
-            • q(t) = ξ(t) + (q₀ - ξ(0) + σᵣtz₀) exp(-kt)
+            • a(t) = ξ(t) + (a₀ - ξ(0) + σᵣtz₀) exp(-kt)
             • z(t) = (1 - (1-σ₁)t)z₀ + tξ(t)
 
         • Conditional velocity field:
-            • First, given q(t) and z(t), we want to compute q₀ and z₀.
+            • First, given a(t) and z(t), we want to compute a₀ and z₀.
                 • z₀ = (z(t) - tξ(t)) / (1 - (1-σ₁)t)
-                • q₀ = ξ(0) + (q(t) - ξ(t)) exp(kt) - σᵣtz₀
+                • a₀ = ξ(0) + (a(t) - ξ(t)) exp(kt) - σᵣtz₀
             • Then, we compute the velocity for the conditional flow.
-                • vq(q, z, t) = ξ̇(t) -k(q₀ - ξ(0) + σᵣtz₀)exp(-kt) + σᵣz₀exp(-kt)
-                • vz(q, z, t) = ξ(t) + tξ̇(t) - (1-σ₁)z₀
-            • Plugging (z₀, q₀) into the velocity gives us the velocity field:
-                • vq(q, z, t) = ξ̇(t) - k(q - ξ(t)) + σᵣexp(-kt) / (1 - (1-σ₁)t) * (z - tξ(t))
-                • vz(q, z, t) = ξ(t) + tξ̇(t) - (1-σ₁) / (1 - (1-σ₁)t) * (z - tξ(t))
+                • va(a, z, t) = ξ̇(t) -k(a₀ - ξ(0) + σᵣtz₀)exp(-kt) + σᵣz₀exp(-kt)
+                • vz(a, z, t) = ξ(t) + tξ̇(t) - (1-σ₁)z₀
+            • Plugging (z₀, a₀) into the velocity gives us the velocity field:
+                • va(a, z, t) = ξ̇(t) - k(a - ξ(t)) + σᵣexp(-kt) / (1 - (1-σ₁)t) * (z - tξ(t))
+                • vz(a, z, t) = ξ(t) + tξ̇(t) - (1-σ₁) / (1 - (1-σ₁)t) * (z - tξ(t))
 
         Args:
             traj (Trajectory): Demonstration trajectory.
@@ -121,7 +121,7 @@ class StreamingFlowPolicyLatentBad (StreamingFlowPolicyLatentBase):
         σr = self.σr
         k = self.k
 
-        qt = x[..., self.slice_q]  # (*BS, D)
+        at = x[..., self.slice_a]  # (*BS, D)
         zt = x[..., self.slice_z]  # (*BS, D)
         ξt = self.ξt(traj, t)  # (*BS, D)
         ξ̇t = self.ξ̇t(traj, t)  # (*BS, D)
@@ -132,60 +132,60 @@ class StreamingFlowPolicyLatentBad (StreamingFlowPolicyLatentBase):
         z0 = (zt - t * ξt) / (1 - (1 - σ1) * t)  # (*BS, D)
 
         # Compute velocity field
-        vq = ξ̇t - k * (qt - ξt) + σr * z0 * αt  # (*BS, D)
+        va = ξ̇t - k * (at - ξt) + σr * z0 * αt  # (*BS, D)
         vz = ξt + t * ξ̇t - (1 - σ1) * z0  # (*BS, D)
 
-        return torch.cat([vq, vz], dim=-1)  # (*BS, 2D)
+        return torch.cat([va, vz], dim=-1)  # (*BS, 2D)
 
-    def 𝔼vq_conditional(self, traj: Trajectory, q: Tensor, t: Tensor) -> Tensor:
+    def 𝔼va_conditional(self, traj: Trajectory, a: Tensor, t: Tensor) -> Tensor:
         """
-        Compute the expected velocity field of q over z given q, t and a trajectory.
+        Compute the expected velocity field of a over z given a, t and a trajectory.
 
         The velocity field is given by:
-            • vq(q, z, t) = ξ̇(t) - k(q - ξ(t)) + σᵣexp(-kt) / (1 - (1-σ₁)t) * (z - tξ(t))
+            • va(a, z, t) = ξ̇(t) - k(a - ξ(t)) + σᵣexp(-kt) / (1 - (1-σ₁)t) * (z - tξ(t))
         
-        Therefore, the expected velocity under N(μ_z|q, Σ_z|q) is given by:
-            • 𝔼[vq(q, z, t)] = ξ̇(t) - k(q - ξ(t)) + σᵣexp(-kt) / (1 - (1-σ₁)t) * (μ_z|q - tξ(t))
+        Therefore, the expected velocity under N(μ_z|a, Σ_z|a) is given by:
+            • 𝔼[va(a, z, t)] = ξ̇(t) - k(a - ξ(t)) + σᵣexp(-kt) / (1 - (1-σ₁)t) * (μ_z|a - tξ(t))
 
         Args:
             traj (Trajectory): Demonstration trajectory.
-            q (Tensor, dtype=default, shape=(*BS, D)): Configuration.
+            a (Tensor, dtype=default, shape=(*BS, D)): Action.
             t (Tensor, dtype=default, shape=(*BS)): Time value in [0,1].
 
         Returns:
             (Tensor, dtype=default, shape=(*BS, D)):
-                expected value of vq over z given q, t and a trajectory.
+                expected value of va over z given a, t and a trajectory.
         """
         σ1 = self.σ1
         σr = self.σr
         k = self.k
 
-        μ_zCq, Σ_zCq = self.μΣt_zCq(traj, t, q)  # (*BS, D), (*BS, D, D)
+        μ_zCa, Σ_zCa = self.μΣt_zCa(traj, t, a)  # (*BS, D), (*BS, D, D)
 
         ξt = self.ξt(traj, t)  # (*BS, D)
         ξ̇t = self.ξ̇t(traj, t)  # (*BS, D)
         t = t.unsqueeze(-1)  # (*BS, 1)
         αt = torch.exp(-k * t)  # (*BS, 1)
 
-        # Expected z0 given q
-        μ_z0Cq = (μ_zCq - t * ξt) / (1 - (1 - σ1) * t)  # (*BS, D)
+        # Expected z0 given a
+        μ_z0Ca = (μ_zCa - t * ξt) / (1 - (1 - σ1) * t)  # (*BS, D)
 
         # Compute expected velocity field
-        𝔼vq = ξ̇t - k * (q - ξt) + σr * μ_z0Cq * αt  # (*BS, D)
-        return 𝔼vq
+        𝔼va = ξ̇t - k * (a - ξt) + σr * μ_z0Ca * αt  # (*BS, D)
+        return 𝔼va
 
     def 𝔼vz_conditional(self, traj: Trajectory, z: Tensor, t: Tensor) -> Tensor:
         """
-        Compute the expected velocity field of z over q given z, t and a trajectory.
+        Compute the expected velocity field of z over a given z, t and a trajectory.
 
         The velocity field is given by:
-            • vz(q, z, t) = ξ(t) + tξ̇(t) - (1-σ₁) / (1 - (1-σ₁)t) * (z - tξ(t))
+            • vz(a, z, t) = ξ(t) + tξ̇(t) - (1-σ₁) / (1 - (1-σ₁)t) * (z - tξ(t))
         
-        Therefore, the expected velocity under N(μ_z|q, Σ_z|q) is given by:
-            • 𝔼[vz(q, z, t)] = ξ(t) + tξ̇(t) - (1-σ₁) / (1 - (1-σ₁)t) * (z - tξ(t))
+        Therefore, the expected velocity under N(μ_z|a, Σ_z|a) is given by:
+            • 𝔼[vz(a, z, t)] = ξ(t) + tξ̇(t) - (1-σ₁) / (1 - (1-σ₁)t) * (z - tξ(t))
 
-        NOTE: the velocity field of z does not depend on q. So we need not
-        compute the distribution of q given z.
+        NOTE: the velocity field of z does not depend on a. So we need not
+        compute the distribution of a given z.
 
         Args:
             traj (Trajectory): Demonstration trajectory.

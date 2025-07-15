@@ -70,7 +70,7 @@ class StreamingFlowPolicyLatentBase (StreamingFlowPolicyBase):
         ])  # (2D, 2D)
         return μ0, Σ0
 
-    def μΣt_zCq(self, traj: Trajectory, t: Tensor, q: Tensor) -> Tuple[Tensor, Tensor]:
+    def μΣt_zCa(self, traj: Trajectory, t: Tensor, q: Tensor) -> Tuple[Tensor, Tensor]:
         """
         Compute the mean and covariance matrix of the conditional flow of z
         given q at time t.
@@ -78,7 +78,7 @@ class StreamingFlowPolicyLatentBase (StreamingFlowPolicyBase):
         Args:
             traj (Trajectory): Demonstration trajectory.
             t (Tensor, dtype=default, shape=(*BS)): Time value in [0,1].
-            q (Tensor, dtype=default, shape=(*BS, D)): Configuration.
+            a (Tensor, dtype=default, shape=(*BS, D)): Action.
 
         Returns:
             Tensor, dtype=default, shape=(*BS, D): Mean at time t.

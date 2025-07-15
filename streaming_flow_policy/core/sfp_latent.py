@@ -162,7 +162,7 @@ class StreamingFlowPolicyLatent (StreamingFlowPolicyLatentBase):
         σr = self.σr
         k = self.k
 
-        μ_zCq, Σ_zCq = self.μΣt_zCq(traj, t, q)  # (*BS, D), (*BS, D, D)
+        μ_zCq, Σ_zCq = self.μΣt_zCa(traj, t, q)  # (*BS, D), (*BS, D, D)
 
         ξt = self.ξt(traj, t)  # (*BS, D)
         ξ̇t = self.ξ̇t(traj, t)  # (*BS, D)
