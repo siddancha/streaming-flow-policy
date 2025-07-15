@@ -23,13 +23,13 @@ class StreamingFlowPolicyCSpace (StreamingFlowPolicyBase):
 
         Conditional flow:
         • At time t=0, we sample:
-            • q₀ ~ N(ξ(0), σ₀)
+            • a₀ ~ N(ξ(0), σ₀)
 
         • Conditional velocity field at (x, t) is:
-            • u(x, t) = -k(q(t) - ξ(t)) + ξ̇(t)
+            • u(x, t) = -k(a(t) - ξ(t)) + ξ̇(t)
 
         • Flow trajectory at time t:
-            • q(t) - ξ(t) = (q₀ - ξ(0)) exp(-kt)
+            • a(t) - ξ(t) = (a₀ - ξ(0)) exp(-kt)
               • The error from the trajectory decreases exponentially with time.
 
         Args:
@@ -99,10 +99,10 @@ class StreamingFlowPolicyCSpace (StreamingFlowPolicyBase):
         Compute the conditional velocity field for a given trajectory.
 
         • Conditional velocity field at (x, t) is:
-            • u(x, t) = -k(q(t) - ξ(t)) + ξ̇(t)
+            • u(x, t) = -k(a(t) - ξ(t)) + ξ̇(t)
 
         • Flow trajectory at time t:
-            • q(t) - ξ(t) = (q₀ - ξ(0)) exp(-kt)
+            • a(t) - ξ(t) = (a₀ - ξ(0)) exp(-kt)
 
         Args:
             traj (Trajectory): Demonstration trajectory.
@@ -112,10 +112,10 @@ class StreamingFlowPolicyCSpace (StreamingFlowPolicyBase):
         Returns:
             (Tensor, dtype=default, shape=(*BS, X)): Velocity of conditional flow.
         """
-        qt = x  # (*BS, X)
+        at = x  # (*BS, X)
         ξt = self.ξt(traj, t)  # (*BS, X)
         ξ̇t = self.ξ̇t(traj, t)  # (*BS, X)
         k = self.k
 
-        v = ξ̇t - k * (qt - ξt)  # (*BS, X)
+        v = ξ̇t - k * (at - ξt)  # (*BS, X)
         return v
