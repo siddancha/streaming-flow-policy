@@ -3,6 +3,7 @@
 <h4 align="center"><a href="https://streaming-flow-policy.github.io/">🌐 Website</a>  &nbsp;•&nbsp;  <a href=https://arxiv.org/abs/2505.21851>📄 Paper</a> &nbsp;•&nbsp; <a href="https://youtu.be/gqUnEzBCbZE">🎬 Talk</a> &nbsp;•&nbsp; <a href=https://x.com/siddancha/status/1925170490856833180>🐦 Twitter</a> &nbsp;•&nbsp; <a href=https://siddancha.github.io/streaming-flow-policy/notebooks>📚 Notebooks</a></h4>
 <div align="center" style="margin: 0px; padding: 0px">
       <img style="width: 90%; min-width: 500px" src="https://github.com/user-attachments/assets/2b7a02c5-585e-40d4-9c5c-95a1948aa9d0"></img>
+      <img style="width: 70%; min-width: 500px" src="https://github.com/user-attachments/assets/591fc294-b822-4d2c-9e41-2660b39cc863"></img>
 </div>
 
 ## 🛠️ Installation
