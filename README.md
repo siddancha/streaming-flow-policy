@@ -1,4 +1,5 @@
 # Streaming Flow Policy
+### Simplifying diffusion/flow-matching policies by treating action trajectories as flow trajectories
 
 ## Installation
 
@@ -22,7 +23,7 @@
     pip install uv
     ```
 
-3. Sync dependencies using uv:
+3. Sync Python dependencies using uv:
     ```bash
     uv sync
     ```
