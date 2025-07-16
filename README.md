@@ -9,7 +9,7 @@
 </div>
 </div>
 
-## Installation
+## 🛠️ Installation
 
 1. Create a virtual environment
     ```bash
@@ -37,7 +37,7 @@
     ```
 
 
-## Building Jupyter Book
+## 📚 Building Jupyter Book
 
 The Jupyter Book is built using [jupyter-book](https://jupyterbook.org/intro.html). It lives in the `docs/` directory.
 
