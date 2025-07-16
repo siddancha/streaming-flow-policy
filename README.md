@@ -49,10 +49,3 @@ Add a symlink to the `docs` directory.
 #### View Jupyter book locally
 
 The HTML content is created in the `docs/_build/html` directory.
-
-#### To deploy to MIT website
-
-```bash
-scp -r docs/_build/html/* $WEBSITE_HOME/notebooks/
-```
-where `$WEBSITE_HOME` is `sancha@athena.dialup.mit.edu:/afs/athena.mit.edu/user/s/a/sancha/www`.
