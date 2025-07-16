@@ -5,7 +5,7 @@
       <h3>Simplifying diffusion/flow-matching policies by treating<br> <i>action trajectories as flow trajectories</i>
       <h4><a href="https://streaming-flow-policy.github.io/">🌐 Website</a>  &nbsp;•&nbsp;  <a href=https://arxiv.org/abs/2505.21851>📄 Paper</a> &nbsp;•&nbsp; <a href="https://youtu.be/gqUnEzBCbZE">🎬 Talk</a> &nbsp;•&nbsp; <a href=https://x.com/siddancha/status/1925170490856833180>🐦 Twitter</a> &nbsp;•&nbsp; <a href=https://siddancha.github.io/streaming-flow-policy/notebooks>📚 Notebooks</a></h4>
 </h3>
-<img width=85% src="https://github.com/user-attachments/assets/48e88da0-97fa-4a99-9ecf-54258fa45c0f"></img>
+<img width=90% src="https://github.com/user-attachments/assets/48e88da0-97fa-4a99-9ecf-54258fa45c0f"></img>
 </div>
 </div>
 
