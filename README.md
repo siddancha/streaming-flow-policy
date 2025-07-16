@@ -9,13 +9,6 @@
 </div>
 </div>
 
-# Streaming Flow Policy
-### Simplifying diffusion/flow-matching policies by treating action trajectories as flow trajectories
-
-#### [🌐 Website](https://streaming-flow-policy.github.io/)  &nbsp;•&nbsp;  [📄 Paper](https://arxiv.org/abs/2505.21851) &nbsp;•&nbsp; [🎬 Talk](https://youtu.be/gqUnEzBCbZE) &nbsp;•&nbsp; [🐦 Twitter](https://x.com/siddancha/status/1925170490856833180) &nbsp;•&nbsp; [📚 Notebooks](https://siddancha.github.io/streaming-flow-policy/notebooks)
-
-<img width=80% src="https://github.com/user-attachments/assets/48e88da0-97fa-4a99-9ecf-54258fa45c0f"></img>
-
 ## Installation
 
 1. Create a virtual environment
