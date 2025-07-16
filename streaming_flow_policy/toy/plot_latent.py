@@ -146,7 +146,7 @@ def plot_probability_density_and_streamlines_z(
 
     return heatmap
 
-def plot_probability_density_with_trajectories(
+def plot_probability_density_with_static_trajectories(
         fp: StreamingFlowPolicyLatentBase,
         ax1: plt.Axes,
         ax2: plt.Axes,
