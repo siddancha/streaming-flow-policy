@@ -522,10 +522,14 @@ class PushTEnv(gym.Env):
         self.goal_color = pygame.Color('LightGreen')
         self.goal_pose = np.array([256,256,np.pi/4])  # x, y, theta (in radians)
 
-        # Add collision handeling
-        self.collision_handeler = self.space.add_collision_handler(0, 0)
-        self.collision_handeler.post_solve = self._handle_collision
+        # Add collision handling
+        # Old pymunk API (deprecated in v7.0.0+):
+        # self.collision_handeler = self.space.add_collision_handler(0, 0)
+        # self.collision_handeler.post_solve = self._handle_collision
+        # New pymunk API:
+        self.space.on_collision(0, 0, post_solve=self._handle_collision)
 
+        self.n_contact_points = 0
         self.max_score = 50 * 100
         self.success_threshold = 0.95    # 95% coverage.
 
@@ -781,7 +785,12 @@ if not os.path.isfile(zipped_dataset_path):
     gdown.download(id=id, output=zipped_dataset_path, quiet=False)
 dataset_path = "pusht_replay.zarr"
 if not os.path.isdir(dataset_path):
-  get_ipython().system('unzip /content/pusht_cchi_v7_replay.zarr.zip -d /content/pusht_replay.zarr &> /dev/null')
+    cmd = "unzip pusht_cchi_v7_replay.zarr.zip -d pusht_replay.zarr &> /dev/null"
+    try:
+        get_ipython().system(cmd)
+    except NameError:
+        import subprocess
+        subprocess.run(cmd, shell=True)
 
 # parameters
 pred_horizon = 16

@@ -20,6 +20,7 @@ docs/_build/
 # Diffusion Policy
 *.ckpt
 *.zarr.zip
+*.zarr
 
 # C extensions
 *.so
