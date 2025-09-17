@@ -19,3 +19,4 @@ Check out the following notebooks:
 1. [Streaming flow policy with stabilizing conditional flow](stabilizing-sfp.ipynb)
 2. [Decoupling stochasticity via latent variables](ess-bifurcation.ipynb)
 3. [Flow matching matches marginal (not joint) distribution at every time step within trajectory chunk](ess-intersection.ipynb)
+4. [Streaming flow policy with Push-T](pusht.ipynb)
