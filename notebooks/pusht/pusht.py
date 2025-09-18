@@ -643,6 +643,53 @@ with np.printoptions(precision=4, suppress=True, threshold=5):
 def create_sample_indices(
         episode_ends:np.ndarray, sequence_length:int,
         pad_before: int=0, pad_after: int=0):
+    """
+    Create sample indices for extracting sequences from episode data with padding support.
+    
+    This function generates indices for extracting fixed-length sequences from a dataset
+    composed of multiple episodes. It handles padding at the beginning and end of episodes
+    to ensure all timesteps can be used as starting points for sequences, even near episode
+    boundaries.
+    
+    Parameters
+    ----------
+    episode_ends : (np.ndarray, shape=(E,))
+        Array containing the end indices (one-past-the-last) for each episode.
+        For example, if episodes have lengths [10, 15, 8], then episode_ends = [10, 25, 33].
+    sequence_length : int
+        Length of the sequences to extract from the dataset.
+    pad_before : int, default=0
+        Number of timesteps to pad before the episode start. This allows sequences
+        to start before the actual episode data by repeating the first values of all data keys.
+    pad_after : int, default=0
+        Number of timesteps to pad after the episode end. This allows sequences
+        to extend beyond the actual episode data by repeating the last values of all data keys.
+    
+    Returns
+    -------
+    (np.ndarray, shape=(n_samples, 4)) where each row contains:
+        - buffer_start_idx: Starting index in the original data buffer
+        - buffer_end_idx: Ending index in the original data buffer  
+        - sample_start_idx: Starting index within the padded sample
+        - sample_end_idx: Ending index within the padded sample
+        
+    Notes
+    -----
+    The function handles episode boundaries by:
+    1. Computing valid start positions for sequences within each episode.
+    2. Accounting for padding requirements at episode boundaries.
+    3. Returning indices that can be used to extract properly padded sequences.
+    
+    The returned indices are designed to work with a sampling function that can
+    handle the padding by repeating boundary values when accessing out-of-bounds indices.
+    
+    Example
+    -------
+    >>> episode_ends = np.array([10, 25, 33])  # 3 episodes of lengths 10, 15, 8
+    >>> indices = create_sample_indices(episode_ends, sequence_length=5, pad_before=2, pad_after=1)
+    >>> # Returns indices for all possible 5-step sequences with 2-step before padding
+    >>> # and 1-step after padding from all episodes
+    """
     indices = list()
     for i in range(len(episode_ends)):
         start_idx = 0
