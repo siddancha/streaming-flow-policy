@@ -640,9 +640,36 @@ with np.printoptions(precision=4, suppress=True, threshold=5):
 #@markdown  - key `obs`: shape (obs_horizon, obs_dim)
 #@markdown  - key `action`: shape (pred_horizon, action_dim)
 
-def create_sample_indices(
+from dataclasses import dataclass
+from typing import Tuple
+
+@dataclass
+class SequencePointer:
+    """
+    Container for sample extraction pointers.
+    """
+
+    """Starting index in the original data buffer to begin extraction."""
+    buffer_start_idx: int
+
+    """Ending index in the original data buffer (exclusive) for extraction."""
+    buffer_end_idx: int
+    
+    """Starting index within the padded sample."""
+    sample_start_idx: int
+    
+    """Ending index within the padded sample."""
+    sample_end_idx: int
+
+    def __iter__(self):
+        """Allow unpacking: buffer_start, buffer_end, sample_start, sample_end = indices"""
+        return iter([self.buffer_start_idx, self.buffer_end_idx, 
+                     self.sample_start_idx, self.sample_end_idx])
+
+def create_sequence_pointers(
         episode_ends: np.ndarray, sequence_length: int,
-        pad_before: int=0, pad_after: int=0):
+        pad_before: int=0, pad_after: int=0,
+    ) -> List[SequencePointer]:
     """
     Create sample indices for extracting sequences from episode data with padding support.
     
@@ -667,11 +694,9 @@ def create_sample_indices(
     
     Returns
     -------
-    (np.ndarray, shape=(n_samples, 4)) where each row contains:
-        - buffer_start_idx: Starting index in the original data buffer
-        - buffer_end_idx: Ending index in the original data buffer  
-        - sample_start_idx: Starting index within the padded sample
-        - sample_end_idx: Ending index within the padded sample
+    List[SequencePointer]
+        List of SequencePointer objects for extracting sequences from all episodes.
+        Can be converted to numpy array using np.array(indices) for compatibility.
         
     Notes
     -----
@@ -687,8 +712,7 @@ def create_sample_indices(
     -------
     >>> episode_ends = np.array([10, 25, 33])  # 3 episodes of lengths 10, 15, 8
     >>> indices = create_sample_indices(episode_ends, sequence_length=5, pad_before=2, pad_after=1)
-    >>> # Returns indices for all possible 5-step sequences with 2-step before padding
-    >>> # and 1-step after padding from all episodes
+    >>> # Returns list of SequencePointer objects for all possible 5-step sequences
     """
     indices = list()
     for i in range(len(episode_ends)):
@@ -709,16 +733,16 @@ def create_sample_indices(
             end_offset = (idx+sequence_length+start_idx) - buffer_end_idx
             sample_start_idx = 0 + start_offset
             sample_end_idx = sequence_length - end_offset
-            indices.append([
-                buffer_start_idx, buffer_end_idx,
-                sample_start_idx, sample_end_idx])
-    indices = np.array(indices)
+            indices.append(SequencePointer(
+                buffer_start_idx,
+                buffer_end_idx,
+                sample_start_idx,
+                sample_end_idx,
+            ))
     return indices
 
 
-def sample_sequence(train_data, sequence_length,
-                    buffer_start_idx, buffer_end_idx,
-                    sample_start_idx, sample_end_idx):
+def extract_sequence(train_data, sequence_length, ptr: SequencePointer):
     """
     Extract and pad a sequence from training data using specified indices.
     
@@ -735,16 +759,9 @@ def sample_sequence(train_data, sequence_length,
     sequence_length : int
         Desired length of the output sequence. All returned arrays will have
         this length in the first dimension.
-    buffer_start_idx : int
-        Starting index in the original data buffer to begin extraction.
-    buffer_end_idx : int
-        Ending index in the original data buffer (exclusive) for extraction.
-    sample_start_idx : int
-        Starting index within the output sequence where the extracted data should be placed.
-        Values before this index will be padded with the first value of the extracted sample.
-    sample_end_idx : int
-        Ending index within the output sequence (exclusive) where the extracted data ends.
-        Values after this index will be padded with the last value of the extracted sample.
+    ptr : SequencePointer
+        Container of sequence pointer indices for extracting and placing the
+        sequence data.
     
     Returns
     -------
@@ -770,26 +787,26 @@ def sample_sequence(train_data, sequence_length,
     -------
     >>> train_data = {'action': np.array([[1], [2], [3], [4], [5]]), 
     ...               'obs': np.array([[0.1], [0.2], [0.3], [0.4], [0.5]])}
-    >>> result = sample_sequence(train_data, sequence_length=6, 
-    ...                         buffer_start_idx=1, buffer_end_idx=4,
+    >>> indices = SampleIndices(buffer_start_idx=1, buffer_end_idx=4,
     ...                         sample_start_idx=2, sample_end_idx=5)
+    >>> result = sample_sequence(train_data, sequence_length=6, indices)
     >>> # Extracts [2,3,4] from buffer indices 1:4, but places them at positions 2:5
     >>> # result['action'] = [[2], [2], [2], [3], [4], [4]]  # padded at start and end
     >>> # result['obs'] = [[0.2], [0.2], [0.2], [0.3], [0.4], [0.4]]  # same padding pattern
     """
     result = dict()
     for key, input_arr in train_data.items():
-        sample = input_arr[buffer_start_idx:buffer_end_idx]
+        sample = input_arr[ptr.buffer_start_idx:ptr.buffer_end_idx]
         data = sample
-        if (sample_start_idx > 0) or (sample_end_idx < sequence_length):
+        if (ptr.sample_start_idx > 0) or (ptr.sample_end_idx < sequence_length):
             data = np.zeros(
                 shape=(sequence_length,) + input_arr.shape[1:],
                 dtype=input_arr.dtype)
-            if sample_start_idx > 0:
-                data[:sample_start_idx] = sample[0]
-            if sample_end_idx < sequence_length:
-                data[sample_end_idx:] = sample[-1]
-            data[sample_start_idx:sample_end_idx] = sample
+            if ptr.sample_start_idx > 0:
+                data[:ptr.sample_start_idx] = sample[0]
+            if ptr.sample_end_idx < sequence_length:
+                data[ptr.sample_end_idx:] = sample[-1]
+            data[ptr.sample_start_idx:ptr.sample_end_idx] = sample
         result[key] = data
     return result
 
@@ -803,51 +820,46 @@ def get_data_stats(data):
     return stats
 
 def normalize_data(data, stats):
-    # nomalize to [0,1]
-    ndata = (data - stats['min']) / (stats['max'] - stats['min'])
-    # normalize to [-1, 1]
-    ndata = ndata * 2 - 1
+    ndata = (data - stats['min']) / (stats['max'] - stats['min'])  # to [0, 1]
+    ndata = ndata * 2 - 1  # to [-1, 1]
     return ndata
 
 def unnormalize_data(ndata, stats):
-    ndata = (ndata + 1) / 2
-    data = ndata * (stats['max'] - stats['min']) + stats['min']
+    ndata = (ndata + 1) / 2  # to [0, 1]
+    data = ndata * (stats['max'] - stats['min']) + stats['min']  # to original
     return data
 
-# dataset
-class PushTStateDataset(torch.utils.data.Dataset):
+class PushTDataset(torch.utils.data.Dataset):
     def __init__(self, dataset_path,
                  pred_horizon, obs_horizon, action_horizon):
 
-        # read from zarr dataset
+        # Read from zarr dataset
         dataset_root = zarr.open(dataset_path, 'r')
-        # All demonstration episodes are concatinated in the first dimension N
+        
+        # All demonstration episodes are concatenated in the first dimension N
         train_data = {
-            # (N, action_dim)
-            'action': dataset_root['data']['action'][:],
-            # (N, obs_dim)
-            'obs': dataset_root['data']['state'][:]
+            'action': dataset_root['data']['action'][:],  # (N, action_dim)
+            'obs': dataset_root['data']['state'][:],  # (N, obs_dim)
         }
         # Marks one-past the last index for each episode
         episode_ends = dataset_root['meta']['episode_ends'][:]
 
-        # compute start and end of each state-action sequence
+        # Compute start and end of each state-action sequence,
         # also handles padding
-        indices = create_sample_indices(
+        self.sequence_pointers = create_sequence_pointers(
             episode_ends=episode_ends,
             sequence_length=pred_horizon,
             # add padding such that each timestep in the dataset are seen
             pad_before=obs_horizon-1,
             pad_after=action_horizon-1)
 
-        # compute statistics and normalized data to [-1,1]
+        # Compute statistics and normalized data to [-1, 1]
         stats = dict()
         normalized_train_data = dict()
         for key, data in train_data.items():
             stats[key] = get_data_stats(data)
             normalized_train_data[key] = normalize_data(data, stats[key])
 
-        self.indices = indices
         self.stats = stats
         self.normalized_train_data = normalized_train_data
         self.pred_horizon = pred_horizon
@@ -855,22 +867,18 @@ class PushTStateDataset(torch.utils.data.Dataset):
         self.obs_horizon = obs_horizon
 
     def __len__(self):
-        # all possible segments of the dataset
-        return len(self.indices)
+        """Count of all possible segments of the dataset"""
+        return len(self.sequence_pointers)
 
     def __getitem__(self, idx):
-        # get the start/end indices for this datapoint
-        buffer_start_idx, buffer_end_idx, \
-            sample_start_idx, sample_end_idx = self.indices[idx]
+        # Get the sequence pointer for this datapoint
+        ptr = self.sequence_pointers[idx]
 
-        # get nomralized data using these indices
-        nsample = sample_sequence(
+        # Get normalized data using these indices
+        nsample = extract_sequence(
             train_data=self.normalized_train_data,
             sequence_length=self.pred_horizon,
-            buffer_start_idx=buffer_start_idx,
-            buffer_end_idx=buffer_end_idx,
-            sample_start_idx=sample_start_idx,
-            sample_end_idx=sample_end_idx
+            ptr=ptr
         )
 
         # discard unused observations
