@@ -1,4 +1,13 @@
 import matplotlib.pyplot as plt
+import numpy as np
+import random
+import torch
+
+def set_random_seed(seed: int):
+    # https://pytorch.org/docs/stable/notes/randomness.html
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
 
 def SetLatexInMatplotlib():
     """Configure Matplotlib to use LaTeX for labels and titles only.
