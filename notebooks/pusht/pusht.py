@@ -878,7 +878,7 @@ class PushTDataset(torch.utils.data.Dataset):
         nsample = extract_sequence(
             train_data=self.normalized_train_data,
             sequence_length=self.pred_horizon,
-            ptr=ptr
+            ptr=ptr,
         )
 
         # discard unused observations
