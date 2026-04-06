@@ -17,6 +17,7 @@ class StreamingFlowPolicyStochastic (Policy):
                  σ0: float = 0.0,
                  σ1: float = 0.0,
                  pred_horizon: int = 16,
+                 eqme_lambda: float = 0.0,
                  device: torch.device = 'cuda',
         ):
         """
@@ -42,6 +43,8 @@ class StreamingFlowPolicyStochastic (Policy):
             pred_horizon (int): prediction horizon
             σ0 (float): standard deviation of conditional probability flow at t=0.
             σ1 (float): standard deviation of conditional probability flow at t=1.
+            eqme_lambda (float): weight for the EqM-E regularisation loss.
+                Set to 0 (default) to disable.
             device (torch.device): device
         """
         super().__init__()
@@ -57,7 +60,9 @@ class StreamingFlowPolicyStochastic (Policy):
         self.register_buffer('σ0', torch.tensor(σ0, dtype=torch.float32))
         self.register_buffer('σ1', torch.tensor(σ1, dtype=torch.float32))
         self.register_buffer('σr', torch.tensor(σr, dtype=torch.float32))
+        self.register_buffer('eqme_lambda', torch.tensor(eqme_lambda, dtype=torch.float32))
         self.pred_horizon: Tensor; self.σ0: Tensor; self.σ1: Tensor; self.σr: Tensor
+        self.eqme_lambda: Tensor
 
     def TransformTrainingDatum(self, datum: Dict[str, np.ndarray]) -> Dict[str, np.ndarray]:
         """
@@ -126,6 +131,7 @@ class StreamingFlowPolicyStochastic (Policy):
             'va': va.astype(np.float32),  # (1, ACTION_DIM)
             'vz': vz.astype(np.float32),  # (1, ACTION_DIM)
             't': time,  # (,)
+            'xi_t': ξt.astype(np.float32),  # (1, ACTION_DIM) clean trajectory point
         }
 
     @torch.enable_grad()
@@ -133,39 +139,76 @@ class StreamingFlowPolicyStochastic (Policy):
         """
         Args:
             batch (Dict[str, Tensor]):
-                'obs' (Tensor, shape=(B, OBS_HORIZON, OBS_DIM))
-                'a' (Tensor, shape=(B, 1, ACTION_DIM))
-                'z' (Tensor, shape=(B, 1, ACTION_DIM), dtype=np.float32): latent variable
-                'va' (Tensor, shape=(B, 1, ACTION_DIM), dtype=np.float32): target a-velocity
-                'vz' (Tensor, shape=(B, 1, ACTION_DIM), dtype=np.float32): target z-velocity
-                't' (Tensor, shape=(B,)): time
+                'obs'   (Tensor, shape=(B, OBS_HORIZON, OBS_DIM))
+                'a'     (Tensor, shape=(B, 1, ACTION_DIM)): noisy action sample
+                'z'     (Tensor, shape=(B, 1, ACTION_DIM)): latent variable
+                'va'    (Tensor, shape=(B, 1, ACTION_DIM)): target a-velocity
+                'vz'    (Tensor, shape=(B, 1, ACTION_DIM)): target z-velocity
+                't'     (Tensor, shape=(B,)): time
+                'xi_t'  (Tensor, shape=(B, 1, ACTION_DIM)): clean trajectory point ξ(t)
 
         Returns:
-            Tensor (shape=(,), dtype=torch.float32): loss
+            Tensor (shape=(,), dtype=torch.float32): total loss
         """
         # device transfer
-        obs = batch['obs'].to(self.device)  # (B, OBS_HORIZON, OBS_DIM)
-        a = batch['a'].to(self.device)  # (B, 1, ACTION_DIM)
-        z = batch['z'].to(self.device)  # (B, 1, ACTION_DIM)
-        va = batch['va'].to(self.device)  # (B, 1, ACTION_DIM)
-        vz = batch['vz'].to(self.device)  # (B, 1, ACTION_DIM)
-        t = batch['t'].to(self.device)  # (B,)
-        B = obs.shape[0]
+        obs = batch['obs'].to(self.device)   # (B, OBS_HORIZON, OBS_DIM)
+        a = batch['a'].to(self.device)       # (B, 1, ACTION_DIM)
+        z = batch['z'].to(self.device)       # (B, 1, ACTION_DIM)
+        va = batch['va'].to(self.device)     # (B, 1, ACTION_DIM)
+        vz = batch['vz'].to(self.device)     # (B, 1, ACTION_DIM)
+        t = batch['t'].to(self.device)       # (B,)
 
         # observation as FiLM conditioning
         obs_cond = obs.flatten(start_dim=1)  # (B, OBS_HORIZON * OBS_DIM)
 
         # concatenate a and z
-        x = torch.cat((a, z), dim=-2)  # (B, 2, ACTION_DIM)
-        v_target = torch.cat((va, vz), dim=-2)  # (B, 2, ACTION_DIM)
+        x = torch.cat((a, z), dim=-2)            # (B, 2, ACTION_DIM)
+        v_target = torch.cat((va, vz), dim=-2)   # (B, 2, ACTION_DIM)
 
         # predict the velocity
         v_pred = self.velocity_net(
             sample=x, timestep=t, global_cond=obs_cond
         )  # (B, 2, ACTION_DIM)
 
-        # L2 loss
-        loss = nn.functional.mse_loss(v_pred, v_target)  # (,)
+        # SFP flow-matching loss  L_SFP = ||v_pred - v_target||^2
+        loss = nn.functional.mse_loss(v_pred, v_target)
+
+        # ------------------------------------------------------------------ #
+        # EqM-E regularisation (only when eqme_lambda > 0)
+        #
+        # Energy:      g(a, t, h) = a · v_a_theta(a, t, h)
+        # Regulariser: L_eqme = lambda * ||grad_a g||^2
+        #
+        # Evaluated at the *clean* trajectory point a = ξ(t) so the gradient
+        # penalises the vector field geometry near the demonstration manifold.
+        # ------------------------------------------------------------------ #
+        if self.eqme_lambda.item() > 0.0:
+            xi_t = batch['xi_t'].to(self.device)  # (B, 1, ACTION_DIM)
+
+            # Detach from the original graph and re-attach as a leaf so we can
+            # differentiate the network output w.r.t. this specific input.
+            xi_leaf = xi_t.detach().requires_grad_(True)  # (B, 1, ACTION_DIM)
+
+            # Forward pass at clean trajectory point, keeping the graph alive
+            # so that the higher-order gradient can be backpropagated.
+            x_clean = torch.cat((xi_leaf, z.detach()), dim=-2)  # (B, 2, ACTION_DIM)
+            v_clean = self.velocity_net(
+                sample=x_clean, timestep=t, global_cond=obs_cond.detach()
+            )  # (B, 2, ACTION_DIM)
+
+            # Action-velocity component only:  v_a shape (B, 1, ACTION_DIM)
+            v_a_clean = v_clean[:, :1, :]
+
+            # g = ξ(t) · v_a(ξ(t), z, t, h)  — summed to a scalar
+            g = (xi_leaf * v_a_clean).sum()
+
+            # grad_a g  shape (B, 1, ACTION_DIM);  create_graph=True allows
+            # higher-order differentiation through this gradient during .backward()
+            (grad_g,) = torch.autograd.grad(g, xi_leaf, create_graph=True)
+
+            l_eqme = (grad_g ** 2).mean()
+            loss = loss + self.eqme_lambda * l_eqme
+
         return loss
 
     @torch.inference_mode()
